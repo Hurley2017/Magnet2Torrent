@@ -1,0 +1,43 @@
+{
+  "name": "magnet2torrent",
+  "version": "1.0.0",
+  "description": "Terminal-based torrent search engine and launcher for magnet links",
+  "main": "index.js",
+  "bin": {
+    "magnet2torrent": "./index.js"
+  },
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "search": "node index.js search"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hurley2017/Magnet2Torrent.git"
+  },
+  "keywords": [
+    "torrent",
+    "magnet",
+    "cli",
+    "bittorrent",
+    "torrent-search",
+    "p2p",
+    "download",
+    "open-source"
+  ],
+  "author": "Tusher Mondal (Hurley2017)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Hurley2017/Magnet2Torrent/issues"
+  },
+  "homepage": "https://github.com/Hurley2017/Magnet2Torrent#readme",
+  "dependencies": {
+    "torrent-search-api": "^2.0.3",
+    "inquirer": "^8.2.6",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.5",
+    "open": "^8.4.2",
+    "ora": "^5.4.1",
+    "commander": "^12.1.0"
+  }
+}
