@@ -13,9 +13,13 @@ import { AdvisoryBanner } from './AdvisoryBanner';
 const TERMS_STORAGE_KEY = 'm2t_terms_accepted_v1';
 
 function seedClass(seeds: number): string {
-  if (seeds >= 100) return 'border-zinc-500 bg-zinc-800 text-white';
-  if (seeds >= 10) return 'border-zinc-700 bg-zinc-900 text-zinc-200';
-  return 'border-red-800/80 bg-red-950/60 text-red-300';
+  if (seeds >= 100) return 'border-emerald-500/70 bg-emerald-950/75 text-emerald-200';
+  if (seeds >= 10) return 'border-emerald-700/70 bg-emerald-950/55 text-emerald-300';
+  return 'border-emerald-800/60 bg-emerald-950/40 text-emerald-300';
+}
+
+function peerClass(): string {
+  return 'border-amber-600/65 bg-amber-950/55 text-amber-300';
 }
 
 function formatStat(stat: ProviderStat): {
@@ -50,6 +54,58 @@ function formatStat(stat: ProviderStat): {
         className: 'border-red-700/70 bg-red-950/60 text-red-300',
       };
   }
+}
+
+function computeDynamicPageSize(
+  viewportWidth: number,
+  viewportHeight: number,
+  hasMediaCard: boolean
+): number {
+  const isDesktopSplit = viewportWidth >= 1024;
+  const chromeHeight = isDesktopSplit ? 310 : hasMediaCard ? 460 : 330;
+  const rowHeight = viewportWidth >= 640 ? 104 : 132;
+  const available = Math.max(360, viewportHeight - chromeHeight);
+  const count = Math.floor(available / rowHeight);
+  return Math.max(4, Math.min(count, 15));
+}
+
+function getPageNumbers(current: number, total: number): Array<number | 'ellipsis'> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: Array<number | 'ellipsis'> = [1];
+  const left = Math.max(2, current - 1);
+  const right = Math.min(total - 1, current + 1);
+
+  if (left > 2) pages.push('ellipsis');
+  for (let p = left; p <= right; p += 1) {
+    pages.push(p);
+  }
+  if (right < total - 1) pages.push('ellipsis');
+  pages.push(total);
+  return pages;
+}
+
+function MagnetIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 32 32"
+      fill="none"
+      className={className}
+    >
+      <g transform="rotate(-45 16 16)">
+        <path
+          d="M9 7v9a7 7 0 0 0 14 0V7h-4.5v9a2.5 2.5 0 0 1-5 0V7H9z"
+          fill="#dc2626"
+        />
+        <rect x="9" y="6" width="4.5" height="4.2" rx="0.8" fill="#ffffff" />
+        <rect x="18.5" y="6" width="4.5" height="4.2" rx="0.8" fill="#ffffff" />
+        <rect x="9" y="10.2" width="4.5" height="1.2" fill="#a1a1aa" />
+        <rect x="18.5" y="10.2" width="4.5" height="1.2" fill="#a1a1aa" />
+      </g>
+    </svg>
+  );
 }
 
 function MediaDossier({ media }: { media: MediaMetadata }) {
@@ -193,7 +249,7 @@ function ResultRow({ item, rank, busy, copied, onCopy, onLaunch }: ResultRowProp
           <span className={`border px-2 py-0.5 font-semibold ${seedClass(item.seeds)}`}>
             Seeds: {item.seeds}
           </span>
-          <span className="border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-zinc-300">
+          <span className={`border px-2 py-0.5 font-semibold ${peerClass()}`}>
             Peers: {item.peers}
           </span>
         </div>
@@ -203,7 +259,7 @@ function ResultRow({ item, rank, busy, copied, onCopy, onLaunch }: ResultRowProp
             type="button"
             disabled={busy}
             onClick={() => onCopy(item)}
-            className="min-h-[36px] rounded-md border border-zinc-700 bg-zinc-900 px-3.5 py-1.5 font-mono text-[11px] font-semibold tracking-wider text-zinc-100 uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-zinc-500 hover:bg-zinc-800 hover:text-white active:translate-y-px disabled:opacity-50"
+            className="min-h-[38px] rounded-md border border-zinc-700 bg-zinc-900 px-3.5 py-1.5 font-mono text-[11px] font-semibold tracking-wider text-zinc-100 uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-zinc-500 hover:bg-zinc-800 hover:text-white active:translate-y-px disabled:opacity-50"
           >
             {copied ? 'Copied' : 'Copy'}
           </button>
@@ -211,9 +267,15 @@ function ResultRow({ item, rank, busy, copied, onCopy, onLaunch }: ResultRowProp
             type="button"
             disabled={busy}
             onClick={() => onLaunch(item)}
-            className="min-h-[36px] rounded-md bg-gradient-to-b from-red-600 to-red-700 px-4 py-1.5 font-mono text-[11px] font-bold tracking-wider text-white uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_2px_10px_rgba(185,28,28,0.35)] transition hover:from-red-500 hover:to-red-600 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_16px_rgba(220,38,38,0.45)] active:translate-y-px disabled:opacity-50"
+            aria-label={`Launch ${item.title}`}
+            title="Launch in default torrent client"
+            className="inline-flex min-h-[38px] min-w-[44px] items-center justify-center rounded-md border border-red-700/80 bg-zinc-950 px-3 py-1.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_2px_10px_rgba(185,28,28,0.25)] transition hover:border-red-500 hover:bg-red-950/60 hover:shadow-[0_0_16px_rgba(220,38,38,0.4)] active:translate-y-px disabled:opacity-50"
           >
-            {busy ? 'Fetching…' : 'Launch'}
+            {busy ? (
+              <span className="font-mono text-[11px] text-red-300">...</span>
+            ) : (
+              <MagnetIcon className="h-5 w-5" />
+            )}
           </button>
         </div>
       </div>
@@ -234,8 +296,47 @@ export function MagnetSearch() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [launched, setLaunched] = useState<{ title: string; magnet: string } | null>(null);
 
+  // Dynamic viewport-aware pagination
+  const [pageSize, setPageSize] = useState(7);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const searchCacheRef = useRef<Map<string, SearchResponse>>(new Map());
   const internalNavCountRef = useRef(0);
+  const resultsTopRef = useRef<HTMLDivElement | null>(null);
+  const currentPageRef = useRef(1);
+  const pageSizeRef = useRef(7);
+  currentPageRef.current = currentPage;
+  pageSizeRef.current = pageSize;
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    function updateSize() {
+      const nextSize = computeDynamicPageSize(
+        window.innerWidth,
+        window.innerHeight,
+        Boolean(searchData?.media)
+      );
+      if (nextSize !== pageSizeRef.current) {
+        const anchorIndex = (currentPageRef.current - 1) * pageSizeRef.current;
+        const nextPage = Math.floor(anchorIndex / nextSize) + 1;
+        setPageSize(nextSize);
+        setCurrentPage(Math.max(1, nextPage));
+      }
+    }
+
+    updateSize();
+    function handleResize() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(updateSize, 120);
+    }
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (timer) clearTimeout(timer);
+    };
+  }, [searchData?.media]);
 
   const clearToHomeState = useCallback(() => {
     setQuery('');
@@ -244,6 +345,7 @@ export function MagnetSearch() {
     setSearchData(null);
     setResults([]);
     setLaunched(null);
+    setCurrentPage(1);
   }, []);
 
   const runSearch = useCallback(async (q: string, pushHistory = true) => {
@@ -267,6 +369,7 @@ export function MagnetSearch() {
       setQuery(cached.query);
       setSearchData(cached);
       setResults(cached.results);
+      setCurrentPage(1);
       setError(null);
       setLaunched(null);
       return;
@@ -275,6 +378,7 @@ export function MagnetSearch() {
     setLoading(true);
     setError(null);
     setLaunched(null);
+    setCurrentPage(1);
 
     try {
       const params = new URLSearchParams({ q: trimmed });
@@ -432,16 +536,43 @@ export function MagnetSearch() {
     }
   }
 
-  const { matchedResults, otherResults } = useMemo(() => {
-    if (!searchData?.media) {
-      return { matchedResults: [] as TorrentResult[], otherResults: results };
-    }
-    const matched = results.filter((r) => r.isExactMatch);
-    const others = results.filter((r) => !r.isExactMatch);
-    return { matchedResults: matched, otherResults: others };
-  }, [results, searchData?.media]);
+  const totalPages = Math.max(1, Math.ceil(results.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, results.length);
 
-  const showSplitMediaGroups = Boolean(searchData?.media && matchedResults.length > 0);
+  const pagedItems = useMemo(
+    () =>
+      results.slice(startIdx, endIdx).map((item, offset) => ({
+        item,
+        rank: startIdx + offset + 1,
+      })),
+    [endIdx, results, startIdx]
+  );
+
+  const { totalMatchedCount, pageMatched, pageOthers } = useMemo(() => {
+    if (!searchData?.media) {
+      return {
+        totalMatchedCount: 0,
+        pageMatched: [] as Array<{ item: TorrentResult; rank: number }>,
+        pageOthers: pagedItems,
+      };
+    }
+    const matchedTotal = results.filter((r) => r.isExactMatch).length;
+    return {
+      totalMatchedCount: matchedTotal,
+      pageMatched: pagedItems.filter((entry) => entry.item.isExactMatch),
+      pageOthers: pagedItems.filter((entry) => !entry.item.isExactMatch),
+    };
+  }, [pagedItems, results, searchData?.media]);
+
+  const showSplitMediaGroups = Boolean(searchData?.media && totalMatchedCount > 0);
+
+  function goToPage(page: number) {
+    const clamped = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(clamped);
+    resultsTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
   return (
     <div className="min-h-screen bg-[#070709] text-white">
@@ -661,7 +792,7 @@ export function MagnetSearch() {
 
             {/* Post-Search Split Workspace */}
             {!loading && searchData && (
-              <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
+              <div ref={resultsTopRef} className="grid gap-6 lg:grid-cols-12 lg:items-start">
                 {/* Left Sidebar Rail: Media Dossier + Source Fetch Ledger */}
                 <aside className="space-y-6 lg:sticky lg:top-6 lg:col-span-4">
                   {searchData.media && <MediaDossier media={searchData.media} />}
@@ -716,51 +847,79 @@ export function MagnetSearch() {
                         Try different keywords or inspect source availability on the left.
                       </p>
                     </div>
-                  ) : showSplitMediaGroups ? (
+                  ) : (
                     <>
-                      {/* Tier 1: Specific Matched Movie / Series Torrents */}
-                      <div>
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-red-800/60 pb-2.5">
-                          <h2 className="font-mono text-xs font-bold tracking-widest text-white uppercase">
-                            <span className="text-red-400">Matched: </span>
-                            {searchData.media!.name} // {matchedResults.length} Results
-                          </h2>
-                          <span className="font-mono text-[11px] text-zinc-400">
-                            HIGHEST SEEDERS FIRST
-                          </span>
-                        </div>
-                        <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
-                          {matchedResults.map((item, idx) => (
-                            <ResultRow
-                              key={item.id}
-                              item={item}
-                              rank={idx + 1}
-                              busy={resolvingId === item.id}
-                              copied={copiedId === item.id}
-                              onCopy={handleCopy}
-                              onLaunch={handleLaunch}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                      {showSplitMediaGroups ? (
+                        <>
+                          {pageMatched.length > 0 && (
+                            <div>
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-red-800/60 pb-2.5">
+                                <h2 className="font-mono text-xs font-bold tracking-widest text-white uppercase">
+                                  <span className="text-red-400">Matched: </span>
+                                  {searchData.media!.name} // {totalMatchedCount} Total
+                                </h2>
+                                <span className="font-mono text-[11px] text-zinc-400">
+                                  HIGHEST SEEDERS FIRST
+                                </span>
+                              </div>
+                              <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
+                                {pageMatched.map(({ item, rank }) => (
+                                  <ResultRow
+                                    key={item.id}
+                                    item={item}
+                                    rank={rank}
+                                    busy={resolvingId === item.id}
+                                    copied={copiedId === item.id}
+                                    onCopy={handleCopy}
+                                    onLaunch={handleLaunch}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
-                      {/* Tier 2: Rest of Search Results */}
-                      {otherResults.length > 0 && (
+                          {pageOthers.length > 0 && (
+                            <div>
+                              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+                                <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-300 uppercase">
+                                  Rest of Search Results // {results.length - totalMatchedCount} Total
+                                </h2>
+                                <span className="font-mono text-[11px] text-zinc-400">
+                                  HIGHEST SEEDERS FIRST
+                                </span>
+                              </div>
+                              <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
+                                {pageOthers.map(({ item, rank }) => (
+                                  <ResultRow
+                                    key={item.id}
+                                    item={item}
+                                    rank={rank}
+                                    busy={resolvingId === item.id}
+                                    copied={copiedId === item.id}
+                                    onCopy={handleCopy}
+                                    onLaunch={handleLaunch}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
                         <div>
                           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
-                            <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-300 uppercase">
-                              Rest of Search Results // {otherResults.length} Results
+                            <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-200 uppercase">
+                              Results // {results.length} Shown of {searchData.totalRawHits} Fetched
                             </h2>
                             <span className="font-mono text-[11px] text-zinc-400">
                               HIGHEST SEEDERS FIRST
                             </span>
                           </div>
                           <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
-                            {otherResults.map((item, idx) => (
+                            {pagedItems.map(({ item, rank }) => (
                               <ResultRow
                                 key={item.id}
                                 item={item}
-                                rank={matchedResults.length + idx + 1}
+                                rank={rank}
                                 busy={resolvingId === item.id}
                                 copied={copiedId === item.id}
                                 onCopy={handleCopy}
@@ -770,31 +929,62 @@ export function MagnetSearch() {
                           </div>
                         </div>
                       )}
+
+                      {/* Dynamic Viewport Pagination Controls */}
+                      <nav
+                        aria-label="Pagination"
+                        className="flex flex-wrap items-center justify-between gap-3 border border-zinc-800 bg-[#101014] px-4 py-3"
+                      >
+                        <p className="font-mono text-[11px] text-zinc-300">
+                          SHOWING {startIdx + 1}–{endIdx} OF {results.length} ({pageSize}/SCREEN)
+                        </p>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={safePage <= 1}
+                            onClick={() => goToPage(safePage - 1)}
+                            className="min-h-[36px] rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1 font-mono text-[11px] font-semibold text-zinc-200 uppercase transition hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Prev
+                          </button>
+
+                          {getPageNumbers(safePage, totalPages).map((entry, i) =>
+                            entry === 'ellipsis' ? (
+                              <span
+                                key={`ellipsis-${i}`}
+                                className="px-1.5 font-mono text-xs text-zinc-400"
+                              >
+                                …
+                              </span>
+                            ) : (
+                              <button
+                                key={entry}
+                                type="button"
+                                aria-current={entry === safePage ? 'page' : undefined}
+                                onClick={() => goToPage(entry)}
+                                className={`min-h-[36px] min-w-[36px] rounded-md border px-2.5 py-1 font-mono text-xs font-bold transition ${
+                                  entry === safePage
+                                    ? 'border-red-600 bg-red-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+                                    : 'border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-600 hover:text-white'
+                                }`}
+                              >
+                                {entry}
+                              </button>
+                            )
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={safePage >= totalPages}
+                            onClick={() => goToPage(safePage + 1)}
+                            className="min-h-[36px] rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1 font-mono text-[11px] font-semibold text-zinc-200 uppercase transition hover:border-zinc-500 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </nav>
                     </>
-                  ) : (
-                    <div>
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
-                        <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-200 uppercase">
-                          Results // {results.length} Shown of {searchData.totalRawHits} Fetched
-                        </h2>
-                        <span className="font-mono text-[11px] text-zinc-400">
-                          HIGHEST SEEDERS FIRST
-                        </span>
-                      </div>
-                      <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
-                        {results.map((item, idx) => (
-                          <ResultRow
-                            key={item.id}
-                            item={item}
-                            rank={idx + 1}
-                            busy={resolvingId === item.id}
-                            copied={copiedId === item.id}
-                            onCopy={handleCopy}
-                            onLaunch={handleLaunch}
-                          />
-                        ))}
-                      </div>
-                    </div>
                   )}
                 </section>
               </div>

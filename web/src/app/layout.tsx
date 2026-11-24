@@ -5,9 +5,6 @@ export const metadata: Metadata = {
   title: 'Magnet2Torrent — Search Torrents & Launch Magnet Links',
   description:
     'Fast, text-first web search across public BitTorrent indexes with automatic movie and series metadata. Strictly for legal and open-source distribution.',
-  icons: {
-    icon: 'data:,',
-  },
 };
 
 export const viewport: Viewport = {
