@@ -1,7 +1,13 @@
 import * as cheerio from 'cheerio';
-import type { CategoryKey, ProviderInfo, ProviderStat, TorrentResult } from './types';
+import {
+  PROVIDERS,
+  type CategoryKey,
+  type ProviderStat,
+  type TorrentResult,
+} from './catalog';
 
-const PROVIDER_TIMEOUT_MS = 5500;
+const PROVIDER_TIMEOUT_MS = 3500;
+const DEFAULT_RESULT_CAP = 60;
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -27,62 +33,9 @@ const ALLOWED_MAGNET_HOSTS = new Set([
   'limetorrents.info',
   'eztvx.to',
   'eztv.re',
-  'torrentproject.cc',
   'nyaa.si',
-  'yts.mx',
+  'archive.org',
 ]);
-
-export const PROVIDERS: ProviderInfo[] = [
-  {
-    name: 'ThePirateBay',
-    description: 'Public index JSON API (apibay) with embedded magnet links',
-    baseUrl: 'https://apibay.org',
-    categories: ['All', 'Movies', 'TV', 'Music', 'Applications', 'Books', 'Games', 'Anime', 'XXX'],
-    supportsDirectMagnet: true,
-  },
-  {
-    name: '1337x',
-    description: 'General public torrent index across all categories',
-    baseUrl: 'https://www.1337x.to',
-    categories: ['All', 'Movies', 'TV', 'Music', 'Applications', 'Games', 'Anime', 'XXX'],
-    supportsDirectMagnet: false,
-  },
-  {
-    name: 'YTS',
-    description: 'Movie releases API with instant magnet hash links',
-    baseUrl: 'https://yts.mx',
-    categories: ['All', 'Movies'],
-    supportsDirectMagnet: true,
-  },
-  {
-    name: 'EZTV',
-    description: 'TV episodes and series releases with direct magnets',
-    baseUrl: 'https://eztvx.to',
-    categories: ['All', 'TV'],
-    supportsDirectMagnet: true,
-  },
-  {
-    name: 'LimeTorrents',
-    description: 'Multi-category public tracker aggregator',
-    baseUrl: 'https://www.limetorrents.lol',
-    categories: ['All', 'Movies', 'TV', 'Music', 'Applications', 'Games', 'Anime'],
-    supportsDirectMagnet: false,
-  },
-  {
-    name: 'Nyaa',
-    description: 'Anime, manga, and open media torrent index',
-    baseUrl: 'https://nyaa.si',
-    categories: ['All', 'Anime', 'Books', 'Music'],
-    supportsDirectMagnet: true,
-  },
-  {
-    name: 'TorrentProject',
-    description: 'Meta-search torrent index with magnet extraction',
-    baseUrl: 'https://torrentproject.cc',
-    categories: ['All'],
-    supportsDirectMagnet: false,
-  },
-];
 
 export function buildMagnet(infoHash: string, title: string): string {
   const cleanHash = infoHash.trim();
@@ -152,12 +105,19 @@ async function fetchText(url: string, timeoutMs = PROVIDER_TIMEOUT_MS): Promise<
   return res.text();
 }
 
-async function fetchJson<T>(url: string, timeoutMs = PROVIDER_TIMEOUT_MS): Promise<T> {
+async function fetchJson<T>(
+  url: string,
+  options: { method?: 'GET' | 'POST'; body?: string } = {},
+  timeoutMs = PROVIDER_TIMEOUT_MS
+): Promise<T> {
   const res = await fetch(url, {
+    method: options.method || 'GET',
     headers: {
       'User-Agent': USER_AGENT,
       Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     },
+    body: options.body,
     signal: AbortSignal.timeout(timeoutMs),
     cache: 'no-store',
   });
@@ -169,8 +129,7 @@ async function fetchJson<T>(url: string, timeoutMs = PROVIDER_TIMEOUT_MS): Promi
 
 function formatAgeFromEpoch(epochSec: number): string {
   if (!Number.isFinite(epochSec) || epochSec <= 0) return '';
-  const d = new Date(epochSec * 1000);
-  return d.toISOString().slice(0, 10);
+  return new Date(epochSec * 1000).toISOString().slice(0, 10);
 }
 
 // ─── Individual Provider Implementations ─────────────────────────────────────
@@ -183,7 +142,6 @@ async function searchThePirateBay(query: string, category: CategoryKey): Promise
     TV: '200',
     Applications: '300',
     Games: '400',
-    XXX: '500',
   };
   const cat = catMap[category] ?? '';
   const url = `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=${cat}`;
@@ -227,153 +185,136 @@ async function searchThePirateBay(query: string, category: CategoryKey): Promise
     });
 }
 
-async function searchYts(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  if (category !== 'All' && category !== 'Movies') {
-    return [];
-  }
-
-  const url = `https://yts.mx/api/v2/list_movies.json?query_term=${encodeURIComponent(query)}&sort_by=seeds&order_by=desc&limit=25`;
-  type YtsResp = {
-    data?: {
-      movies?: Array<{
-        id: number;
-        title: string;
-        title_long?: string;
-        year?: number;
-        url?: string;
-        torrents?: Array<{
-          hash: string;
-          quality: string;
-          type?: string;
-          seeds: number;
-          peers: number;
-          size: string;
-          size_bytes?: number;
-          date_uploaded?: string;
-          url?: string;
-        }>;
-      }>;
-    };
+async function searchKnaben(query: string, category: CategoryKey): Promise<TorrentResult[]> {
+  const catIds: Partial<Record<CategoryKey, number[]>> = {
+    Music: [1000000],
+    TV: [2000000],
+    Movies: [3000000],
+    Applications: [4000000],
+    Anime: [6000000],
+    Games: [7000000],
+    Books: [9000000],
   };
 
-  const json = await fetchJson<YtsResp>(url);
-  const movies = json?.data?.movies;
-  if (!Array.isArray(movies)) return [];
-
-  const out: TorrentResult[] = [];
-  for (const m of movies) {
-    if (!Array.isArray(m.torrents)) continue;
-    for (const t of m.torrents) {
-      if (!t.hash) continue;
-      const labelTitle = `${m.title_long || m.title} [${t.quality}${t.type ? ` ${t.type.toUpperCase()}` : ''}]`;
-      out.push({
-        id: `yts-${m.id}-${t.hash.slice(0, 8)}`,
-        title: labelTitle,
-        provider: 'YTS',
-        size: t.size || humanizeSize(t.size_bytes ?? 0),
-        sizeBytes: t.size_bytes || parseSizeToBytes(t.size),
-        seeds: parseIntSafe(t.seeds),
-        peers: parseIntSafe(t.peers),
-        time: t.date_uploaded ? t.date_uploaded.slice(0, 10) : '',
-        magnet: buildMagnet(t.hash, labelTitle),
-        link: t.url,
-        desc: m.url,
-      });
-    }
-  }
-  return out;
-}
-
-async function search1337x(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  const catMap: Partial<Record<CategoryKey, string>> = {
-    Movies: 'Movies',
-    TV: 'TV',
-    Games: 'Games',
-    Music: 'Music',
-    Anime: 'Anime',
-    Applications: 'Apps',
-    XXX: 'XXX',
+  const payload: Record<string, unknown> = {
+    query,
+    size: 35,
+    order_by: 'seeders',
+    order_direction: 'desc',
+    hide_unsafe: true,
   };
-  const mapped = catMap[category];
-  const baseUrl = 'https://www.1337x.to';
-  const url = mapped
-    ? `${baseUrl}/category-search/${encodeURIComponent(query)}/${mapped}/1/`
-    : `${baseUrl}/search/${encodeURIComponent(query)}/1/`;
-
-  const html = await fetchText(url);
-  const $ = cheerio.load(html);
-  const results: TorrentResult[] = [];
-
-  $('tbody > tr').each((idx, el) => {
-    const titleLink = $(el).find('td.name a:nth-child(2)');
-    const title = titleLink.text().trim();
-    const href = titleLink.attr('href');
-    if (!title || !href) return;
-
-    const desc = href.startsWith('http') ? href : `${baseUrl}${href}`;
-    const seeds = parseIntSafe($(el).find('.seeds').text());
-    const peers = parseIntSafe($(el).find('.leeches').text());
-    const time = $(el).find('.coll-date').text().trim();
-    // Remove inner span from size cell
-    const sizeCell = $(el).find('.size').clone();
-    sizeCell.find('span').remove();
-    const size = sizeCell.text().trim() || 'N/A';
-
-    results.push({
-      id: `1337x-${idx}-${href.slice(-12)}`,
-      title,
-      provider: '1337x',
-      size,
-      sizeBytes: parseSizeToBytes(size),
-      seeds,
-      peers,
-      time,
-      desc,
-    });
-  });
-
-  return results;
-}
-
-async function searchEztv(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  if (category !== 'All' && category !== 'TV') {
-    return [];
+  if (category !== 'All' && catIds[category]) {
+    payload.categories = catIds[category];
   }
 
-  const baseUrl = 'https://eztvx.to';
-  const slug = encodeURIComponent(query.trim().replace(/\s+/g, '-'));
-  const url = `${baseUrl}/search/${slug}`;
-  const html = await fetchText(url);
-  const $ = cheerio.load(html);
-  const results: TorrentResult[] = [];
+  type KnabenHit = {
+    id: string;
+    title: string;
+    bytes: number;
+    seeders: number;
+    peers: number;
+    date?: string;
+    magnetUrl?: string;
+    hash?: string;
+    details?: string;
+  };
 
-  $('tr.forum_header_border').each((idx, el) => {
-    const titleEl = $(el).find('a.epinfo');
-    const title = titleEl.text().trim();
-    if (!title) return;
-
-    const magnet = $(el).find('a.magnet').attr('href') || undefined;
-    const href = titleEl.attr('href');
-    const desc = href ? (href.startsWith('http') ? href : `${baseUrl}${href}`) : undefined;
-    const size = $(el).find('td.forum_thread_post').eq(3).text().trim() || 'N/A';
-    const time = $(el).find('td.forum_thread_post').eq(4).text().trim();
-    const seeds = parseIntSafe($(el).find('td.forum_thread_post_end').text());
-
-    results.push({
-      id: `eztv-${idx}-${title.slice(0, 12)}`,
-      title,
-      provider: 'EZTV',
-      size,
-      sizeBytes: parseSizeToBytes(size),
-      seeds,
-      peers: 0,
-      time,
-      magnet,
-      desc,
-    });
+  const json = await fetchJson<{ hits?: KnabenHit[] }>('https://api.knaben.org/v1', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 
-  return results;
+  if (!Array.isArray(json?.hits)) return [];
+
+  return json.hits
+    .filter((h) => h && h.title && (h.magnetUrl || h.hash))
+    .map((h) => ({
+      id: `knaben-${h.id}`,
+      title: h.title,
+      provider: 'Knaben',
+      size: humanizeSize(h.bytes || 0),
+      sizeBytes: Number(h.bytes) || 0,
+      seeds: parseIntSafe(h.seeders),
+      peers: parseIntSafe(h.peers),
+      time: h.date ? h.date.slice(0, 10) : '',
+      magnet: h.magnetUrl || buildMagnet(h.hash || '', h.title),
+      desc: h.details || undefined,
+    }));
+}
+
+async function searchTorrentsCsv(query: string): Promise<TorrentResult[]> {
+  const url = `https://torrents-csv.com/service/search?q=${encodeURIComponent(query)}&size=35`;
+  type CsvTorrent = {
+    id?: number;
+    infohash: string;
+    name: string;
+    size_bytes: number;
+    created_unix: number;
+    seeders: number;
+    leechers: number;
+  };
+
+  const json = await fetchJson<{ torrents?: CsvTorrent[] }>(url);
+  if (!Array.isArray(json?.torrents)) return [];
+
+  return json.torrents
+    .filter((t) => t && t.infohash && t.name)
+    .map((t, idx) => ({
+      id: `tcsv-${t.id ?? idx}-${t.infohash.slice(0, 8)}`,
+      title: t.name,
+      provider: 'TorrentsCSV',
+      size: humanizeSize(t.size_bytes),
+      sizeBytes: Number(t.size_bytes) || 0,
+      seeds: parseIntSafe(t.seeders),
+      peers: parseIntSafe(t.leechers),
+      time: formatAgeFromEpoch(Number(t.created_unix)),
+      magnet: buildMagnet(t.infohash, t.name),
+    }));
+}
+
+async function searchInternetArchive(query: string, category: CategoryKey): Promise<TorrentResult[]> {
+  const mediaFilterMap: Partial<Record<CategoryKey, string>> = {
+    Movies: ' AND mediatype:movies',
+    Music: ' AND mediatype:audio',
+    Books: ' AND mediatype:texts',
+    Applications: ' AND mediatype:software',
+  };
+  const extra = mediaFilterMap[category] ?? '';
+  const searchExpr = `(${query}) AND format:"Archive BitTorrent"${extra}`;
+  const url =
+    `https://archive.org/advancedsearch.php?q=${encodeURIComponent(searchExpr)}` +
+    '&fl%5B%5D=identifier,title,item_size,btih,downloads,publicdate&sort%5B%5D=downloads+desc&rows=20&output=json';
+
+  type ArchiveDoc = {
+    identifier: string;
+    title?: string | string[];
+    item_size?: number;
+    btih?: string;
+    publicdate?: string;
+  };
+
+  const json = await fetchJson<{ response?: { docs?: ArchiveDoc[] } }>(url);
+  const docs = json?.response?.docs;
+  if (!Array.isArray(docs)) return [];
+
+  return docs
+    .filter((d) => d && d.identifier && d.btih)
+    .map((d) => {
+      const title = Array.isArray(d.title) ? d.title[0] : d.title || d.identifier;
+      const bytes = Number(d.item_size) || 0;
+      return {
+        id: `ia-${d.identifier}`,
+        title,
+        provider: 'InternetArchive',
+        size: humanizeSize(bytes),
+        sizeBytes: bytes,
+        seeds: 0,
+        peers: 0,
+        time: d.publicdate ? d.publicdate.slice(0, 10) : '',
+        magnet: buildMagnet(d.btih!, title),
+        desc: `https://archive.org/details/${d.identifier}`,
+      };
+    });
 }
 
 async function searchLimeTorrents(query: string, category: CategoryKey): Promise<TorrentResult[]> {
@@ -409,7 +350,6 @@ async function searchLimeTorrents(query: string, category: CategoryKey): Promise
     const time = rawTime.split(' - ')[0]?.trim() || rawTime;
     const size = $(el).find('td.tdnormal').eq(1).text().trim() || 'N/A';
 
-    // Extract hash from itorrents.org/torrent/<HASH>.torrent if available
     let magnet: string | undefined;
     if (link) {
       const hashMatch = link.match(/\/([A-Fa-f0-9]{40})\.torrent/);
@@ -479,32 +419,85 @@ async function searchNyaa(query: string, category: CategoryKey): Promise<Torrent
   return results;
 }
 
-async function searchTorrentProject(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  if (category !== 'All') return [];
-  const baseUrl = 'https://torrentproject.cc';
-  const url = `${baseUrl}/?t=${encodeURIComponent(query)}&orderby=seeders`;
+async function searchSubsPlease(query: string, category: CategoryKey): Promise<TorrentResult[]> {
+  if (category !== 'All' && category !== 'Anime') {
+    return [];
+  }
+
+  const url = `https://subsplease.org/api/?f=search&tz=UTC&s=${encodeURIComponent(query)}`;
+  type SpRelease = {
+    show?: string;
+    episode?: string;
+    release_date?: string;
+    page?: string;
+    downloads?: Array<{ res: string; magnet: string }>;
+  };
+
+  const data = await fetchJson<Record<string, SpRelease> | unknown[]>(url);
+  if (!data || Array.isArray(data)) return [];
+
+  const out: TorrentResult[] = [];
+  for (const [key, item] of Object.entries(data)) {
+    if (!item || !Array.isArray(item.downloads)) continue;
+    for (const dl of item.downloads) {
+      if (!dl.magnet) continue;
+      const sizeMatch = dl.magnet.match(/[?&]xl=(\d+)/);
+      const bytes = sizeMatch ? Number(sizeMatch[1]) : 0;
+      const dateStr = item.release_date ? new Date(item.release_date).toISOString().slice(0, 10) : '';
+      out.push({
+        id: `sp-${key}-${dl.res}`,
+        title: `[SubsPlease] ${key} (${dl.res}p)`,
+        provider: 'SubsPlease',
+        size: humanizeSize(bytes),
+        sizeBytes: bytes,
+        seeds: 0,
+        peers: 0,
+        time: dateStr,
+        magnet: dl.magnet,
+        desc: item.page ? `https://subsplease.org/shows/${item.page}` : undefined,
+      });
+    }
+  }
+  return out;
+}
+
+async function search1337x(query: string, category: CategoryKey): Promise<TorrentResult[]> {
+  const catMap: Partial<Record<CategoryKey, string>> = {
+    Movies: 'Movies',
+    TV: 'TV',
+    Games: 'Games',
+    Music: 'Music',
+    Anime: 'Anime',
+    Applications: 'Apps',
+  };
+  const mapped = catMap[category];
+  const baseUrl = 'https://www.1337x.to';
+  const url = mapped
+    ? `${baseUrl}/category-search/${encodeURIComponent(query)}/${mapped}/1/`
+    : `${baseUrl}/search/${encodeURIComponent(query)}/1/`;
 
   const html = await fetchText(url);
   const $ = cheerio.load(html);
   const results: TorrentResult[] = [];
 
-  $('#similarfiles > div:not(.gac_bb)').each((idx, el) => {
-    const a = $(el).find('a').first();
-    const title = a.text().trim();
-    const href = a.attr('href');
+  $('tbody > tr').each((idx, el) => {
+    const titleLink = $(el).find('td.name a:nth-child(2)');
+    const title = titleLink.text().trim();
+    const href = titleLink.attr('href');
     if (!title || !href) return;
 
-    const desc = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-    const spans = $(el).find('span');
-    const seeds = parseIntSafe(spans.eq(1).text());
-    const peers = parseIntSafe(spans.eq(2).text());
-    const time = spans.eq(3).text().trim();
-    const size = spans.eq(4).text().trim() || 'N/A';
+    const desc = href.startsWith('http') ? href : `${baseUrl}${href}`;
+    const seeds = parseIntSafe($(el).find('.seeds').text());
+    const peers = parseIntSafe($(el).find('.leeches').text());
+    const time = $(el).find('.coll-date').text().trim();
+    const sizeCell = $(el).find('.size').clone();
+    sizeCell.find('span').remove();
+    const size = sizeCell.text().trim() || 'N/A';
 
     results.push({
-      id: `tp-${idx}-${title.slice(0, 12)}`,
+      id: `1337x-${idx}-${href.slice(-12)}`,
       title,
-      provider: 'TorrentProject',
+      provider: '1337x',
       size,
       sizeBytes: parseSizeToBytes(size),
       seeds,
@@ -517,51 +510,85 @@ async function searchTorrentProject(query: string, category: CategoryKey): Promi
   return results;
 }
 
+async function searchEztv(query: string, category: CategoryKey): Promise<TorrentResult[]> {
+  if (category !== 'All' && category !== 'TV') {
+    return [];
+  }
+
+  const baseUrl = 'https://eztvx.to';
+  const slug = encodeURIComponent(query.trim().replace(/\s+/g, '-'));
+  const url = `${baseUrl}/search/${slug}`;
+  const html = await fetchText(url);
+  const $ = cheerio.load(html);
+  const results: TorrentResult[] = [];
+
+  $('tr.forum_header_border').each((idx, el) => {
+    const titleEl = $(el).find('a.epinfo');
+    const title = titleEl.text().trim();
+    if (!title) return;
+
+    const magnet = $(el).find('a.magnet').attr('href') || undefined;
+    const href = titleEl.attr('href');
+    const desc = href ? (href.startsWith('http') ? href : `${baseUrl}${href}`) : undefined;
+    const size = $(el).find('td.forum_thread_post').eq(3).text().trim() || 'N/A';
+    const time = $(el).find('td.forum_thread_post').eq(4).text().trim();
+    const seeds = parseIntSafe($(el).find('td.forum_thread_post_end').text());
+
+    results.push({
+      id: `eztv-${idx}-${title.slice(0, 12)}`,
+      title,
+      provider: 'EZTV',
+      size,
+      sizeBytes: parseSizeToBytes(size),
+      seeds,
+      peers: 0,
+      time,
+      magnet,
+      desc,
+    });
+  });
+
+  return results;
+}
+
 const PROVIDER_RUNNERS: Record<string, (query: string, category: CategoryKey) => Promise<TorrentResult[]>> = {
   ThePirateBay: searchThePirateBay,
-  '1337x': search1337x,
-  YTS: searchYts,
-  EZTV: searchEztv,
+  Knaben: searchKnaben,
+  TorrentsCSV: searchTorrentsCsv,
   LimeTorrents: searchLimeTorrents,
+  InternetArchive: searchInternetArchive,
   Nyaa: searchNyaa,
-  TorrentProject: searchTorrentProject,
+  SubsPlease: searchSubsPlease,
+  '1337x': search1337x,
+  EZTV: searchEztv,
 };
 
 // ─── Unified Search & Magnet Resolution ──────────────────────────────────────
 
 export async function searchAllProviders(
   query: string,
-  category: CategoryKey = 'All',
-  limit = 20,
-  enabledProviders?: string[]
+  category: CategoryKey = 'All'
 ): Promise<{
   results: TorrentResult[];
   totalRawHits: number;
   providerStats: ProviderStat[];
 }> {
-  const clampedLimit = Math.max(1, Math.min(limit, 50));
-  const selectedNames =
-    enabledProviders && enabledProviders.length > 0
-      ? PROVIDERS.map((p) => p.name).filter((name) => enabledProviders.includes(name))
-      : PROVIDERS.map((p) => p.name);
-
-  const tasks = selectedNames.map(async (name): Promise<{ stat: ProviderStat; items: TorrentResult[] }> => {
-    const info = PROVIDERS.find((p) => p.name === name);
-    if (!info || !info.categories.includes(category)) {
+  const tasks = PROVIDERS.map(async (info): Promise<{ stat: ProviderStat; items: TorrentResult[] }> => {
+    if (!info.categories.includes(category)) {
       return {
-        stat: { name, status: 'skipped', count: 0, durationMs: 0 },
+        stat: { name: info.name, status: 'skipped', count: 0, durationMs: 0 },
         items: [],
       };
     }
 
-    const runner = PROVIDER_RUNNERS[name];
+    const runner = PROVIDER_RUNNERS[info.name];
     const start = Date.now();
     try {
       const items = await runner(query, category);
       const durationMs = Date.now() - start;
       return {
         stat: {
-          name,
+          name: info.name,
           status: items.length > 0 ? 'ok' : 'empty',
           count: items.length,
           durationMs,
@@ -570,15 +597,15 @@ export async function searchAllProviders(
       };
     } catch (err) {
       const durationMs = Date.now() - start;
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : 'Unavailable';
       const isTimeout = message.includes('abort') || message.includes('Timeout') || message.includes('timed out');
       return {
         stat: {
-          name,
+          name: info.name,
           status: isTimeout ? 'timeout' : 'error',
           count: 0,
           durationMs,
-          error: message,
+          error: isTimeout ? 'Timed out' : message,
         },
         items: [],
       };
@@ -599,10 +626,10 @@ export async function searchAllProviders(
     }
   }
 
-  // Sort descending by seeds, mirroring CLI sortBySeeds()
+  // Sort descending by seeds, keeping results cleanly bounded for fast rendering
   const sorted = [...filtered]
     .sort((a, b) => b.seeds - a.seeds)
-    .slice(0, clampedLimit);
+    .slice(0, DEFAULT_RESULT_CAP);
 
   return {
     results: sorted,
@@ -627,30 +654,17 @@ export async function resolveMagnetLink(descUrl: string, title = ''): Promise<st
     throw new Error(`Host "${parsed.hostname}" is not an allowlisted torrent provider`);
   }
 
-  const html = await fetchText(parsed.toString(), 6500);
+  const html = await fetchText(parsed.toString(), 5000);
   const $ = cheerio.load(html);
 
-  // Primary: direct magnet anchor
   const directMagnet = $('a[href^="magnet:?xt=urn:btih:"]').first().attr('href');
   if (directMagnet) return directMagnet;
 
-  // TorrentProject wrapped magnet URL
-  const tpHref = $('.usite a[href*="magnet"]').first().attr('href');
-  if (tpHref) {
-    const m = tpHref.match(/url=(.+)/);
-    if (m?.[1]) {
-      const decoded = decodeURIComponent(m[1]);
-      if (decoded.startsWith('magnet:')) return decoded;
-    }
-  }
-
-  // Fallback: infohash box (1337x)
   const hashText = $('.infohash-box span').first().text().trim();
   if (/^[A-Fa-f0-9]{40}$/.test(hashText)) {
     return buildMagnet(hashText, title || 'Magnet2Torrent');
   }
 
-  // Generic regex scan inside HTML
   const rawMatch = html.match(/magnet:\?xt=urn:btih:[A-Za-z0-9]{32,40}[^"'\s<>]*/i);
   if (rawMatch) return rawMatch[0];
 

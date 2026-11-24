@@ -5,30 +5,31 @@
 }
 
 body {
-  background-color: #070b14;
-  color: #e2e8f0;
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  background-color: #140d07;
+  color: #fef3c7;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-code, pre, .font-mono {
-  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+code,
+pre,
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* Subtle custom dark scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b1120;
+  background: #140d07;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #4a3019;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #eab308;
 }

@@ -25,11 +25,11 @@ A fast terminal CLI and Next.js Web application to search for titles across mult
 
 The Web port provides full feature parity in your browser with Next.js App Router serverless API routes ready for **Vercel**:
 
-- **Concurrent Provider Search** (`/api/search`) with per-provider timeouts and live telemetry
+- **Concurrent Provider Search** (`/api/search`) across 9 public sources (`ThePirateBay`, `Knaben`, `TorrentsCSV`, `LimeTorrents`, `InternetArchive`, `Nyaa`, `SubsPlease`, `1337x`, `EZTV`) with live fetch counts & up/down status
 - **On-Demand Magnet Resolution** (`/api/magnet`) with SSRF allowlist protection
-- **One-Click Torrent Client Launch** (`magnet:` URI trigger) + Copy Magnet fallback modal
-- **Category Filtering, Sorting & Live Title Filter** with shareable URL parameters
-- **Prominent Legal Advisory & Disclaimer Modal**
+- **One-Click Torrent Client Launch** (`magnet:` URI trigger) + Copy Magnet fallback strip
+- **Type of Torrent Filtering** (`All`, `Movies`, `TV`, `Music`, `Apps`, `Books`, `Games`, `Anime`) with shareable URL parameters
+- **Lightweight Yellow & Brown UI** with prominent Legal Advisory & Anti-Piracy Disclaimer
 
 ### Run Web App Locally
 
@@ -56,7 +56,7 @@ npx vercel --prod
 
 ## ✨ Features
 
-- 🔍 **Multi-Provider Aggregation**: Concurrently queries public torrent indexes including ThePirateBay, 1337x, YTS, EZTV, LimeTorrents, Nyaa, and TorrentProject.
+- 🔍 **Multi-Provider Aggregation**: Concurrently queries public torrent indexes including ThePirateBay, Knaben, TorrentsCSV, LimeTorrents, InternetArchive, Nyaa, SubsPlease, 1337x, and EZTV.
 - 🚀 **Instant Client Launcher**: Automatically retrieves magnet links on demand and opens them in your operating system's registered BitTorrent client using system handlers.
 - 📊 **Clean Results View**: Displays results sorted by seeders with provider badges, file size, seeders, leechers, and upload age.
 - 🎨 **Color-Coded Health Indicators**: Quick visual cues for torrent health based on seed counts (Green: 100+ seeds, Yellow: 10–99 seeds, Red: <10 seeds).

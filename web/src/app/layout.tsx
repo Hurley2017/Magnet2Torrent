@@ -1,24 +1,22 @@
-import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-});
-
 export const metadata: Metadata = {
-  title: 'Magnet2Torrent Web — Search & Launch Magnet Links',
+  title: 'Magnet2Torrent — Search Torrents & Launch Magnet Links',
   description:
-    'Search across multiple public BitTorrent providers and open magnet links directly in your default torrent client. Strictly for legal and open-source distribution.',
+    'Lightweight web search across public BitTorrent indexes to launch magnet links in your torrent client. Strictly for legal and open-source distribution.',
   icons: {
-    icon: '/magnet.ico',
+    icon: [
+      { url: '/favicon.ico', type: 'image/x-icon' },
+      { url: '/magnet.ico', type: 'image/x-icon' },
+    ],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#140d07',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -27,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} dark`}>
-      <body className="min-h-screen bg-[#070b14] text-slate-200 antialiased selection:bg-cyan-500/30 selection:text-cyan-100">
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-[#140d07] text-[#fef3c7] antialiased selection:bg-yellow-400 selection:text-[#140d07]">
         {children}
       </body>
     </html>
