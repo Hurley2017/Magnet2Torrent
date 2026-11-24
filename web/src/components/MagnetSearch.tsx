@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   PROVIDERS,
   type MediaMetadata,
@@ -154,6 +154,73 @@ function MediaDossier({ media }: { media: MediaMetadata }) {
   );
 }
 
+interface ResultRowProps {
+  item: TorrentResult;
+  rank: number;
+  busy: boolean;
+  copied: boolean;
+  onCopy: (item: TorrentResult) => void;
+  onLaunch: (item: TorrentResult) => void;
+}
+
+function ResultRow({ item, rank, busy, copied, onCopy, onLaunch }: ResultRowProps) {
+  return (
+    <article className="p-4 transition hover:bg-zinc-900/60">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-400">
+            <span className="font-bold text-red-400">{String(rank).padStart(2, '0')}</span>
+            <span>//</span>
+            <span className="font-semibold text-zinc-200">{item.provider}</span>
+            {item.time && (
+              <>
+                <span>·</span>
+                <span>{item.time}</span>
+              </>
+            )}
+          </div>
+          <h3 className="mt-1 text-sm leading-snug font-semibold text-white break-words sm:text-base">
+            {item.title}
+          </h3>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+          <span className="border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-zinc-200">
+            {item.size}
+          </span>
+          <span className={`border px-2 py-0.5 font-semibold ${seedClass(item.seeds)}`}>
+            Seeds: {item.seeds}
+          </span>
+          <span className="border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-zinc-300">
+            Peers: {item.peers}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onCopy(item)}
+            className="min-h-[36px] rounded-md border border-zinc-700 bg-zinc-900 px-3.5 py-1.5 font-mono text-[11px] font-semibold tracking-wider text-zinc-100 uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-zinc-500 hover:bg-zinc-800 hover:text-white active:translate-y-px disabled:opacity-50"
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onLaunch(item)}
+            className="min-h-[36px] rounded-md bg-gradient-to-b from-red-600 to-red-700 px-4 py-1.5 font-mono text-[11px] font-bold tracking-wider text-white uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_2px_10px_rgba(185,28,28,0.35)] transition hover:from-red-500 hover:to-red-600 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_16px_rgba(220,38,38,0.45)] active:translate-y-px disabled:opacity-50"
+          >
+            {busy ? 'Fetching…' : 'Launch'}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function MagnetSearch() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [checkboxChecked, setCheckboxChecked] = useState(false);
@@ -167,28 +234,57 @@ export function MagnetSearch() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [launched, setLaunched] = useState<{ title: string; magnet: string } | null>(null);
 
-  const runSearch = useCallback(async (q: string) => {
+  const searchCacheRef = useRef<Map<string, SearchResponse>>(new Map());
+  const internalNavCountRef = useRef(0);
+
+  const clearToHomeState = useCallback(() => {
+    setQuery('');
+    setLoading(false);
+    setError(null);
+    setSearchData(null);
+    setResults([]);
+    setLaunched(null);
+  }, []);
+
+  const runSearch = useCallback(async (q: string, pushHistory = true) => {
     const trimmed = q.trim();
     if (!trimmed) {
       setError('Please enter a search term.');
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams({ q: trimmed });
-    if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `/?${params.toString()}`);
+    if (pushHistory && typeof window !== 'undefined') {
+      const targetUrl = `/?${new URLSearchParams({ q: trimmed }).toString()}`;
+      const currentUrl = window.location.pathname + window.location.search;
+      if (currentUrl !== targetUrl) {
+        window.history.pushState({ q: trimmed }, '', targetUrl);
+        internalNavCountRef.current += 1;
+      }
     }
 
+    const cached = searchCacheRef.current.get(trimmed.toLowerCase());
+    if (cached && !pushHistory) {
+      setQuery(cached.query);
+      setSearchData(cached);
+      setResults(cached.results);
+      setError(null);
+      setLaunched(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setLaunched(null);
+
     try {
+      const params = new URLSearchParams({ q: trimmed });
       const res = await fetch(`/api/search?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.error || 'Search failed');
       }
       const typed = json as SearchResponse;
+      searchCacheRef.current.set(trimmed.toLowerCase(), typed);
       setSearchData(typed);
       setResults(typed.results);
     } catch (err) {
@@ -199,6 +295,26 @@ export function MagnetSearch() {
     }
   }, []);
 
+  const handleGoHome = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const currentUrl = window.location.pathname + window.location.search;
+      if (currentUrl !== '/') {
+        window.history.pushState({ q: '' }, '', '/');
+        internalNavCountRef.current += 1;
+      }
+    }
+    clearToHomeState();
+  }, [clearToHomeState]);
+
+  const handleGoBack = useCallback(() => {
+    if (typeof window !== 'undefined' && internalNavCountRef.current > 0) {
+      internalNavCountRef.current -= 1;
+      window.history.back();
+      return;
+    }
+    handleGoHome();
+  }, [handleGoHome]);
+
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     const urlQ = (sp.get('q') || '').trim();
@@ -208,13 +324,31 @@ export function MagnetSearch() {
       if (window.localStorage.getItem(TERMS_STORAGE_KEY) === '1') {
         setTermsAccepted(true);
         if (urlQ) {
-          runSearch(urlQ);
+          runSearch(urlQ, false);
         }
       }
     } catch {
       // Storage unavailable; require explicit acceptance
     }
   }, [runSearch]);
+
+  useEffect(() => {
+    function onPopState() {
+      const sp = new URLSearchParams(window.location.search);
+      const urlQ = (sp.get('q') || '').trim();
+      if (!urlQ) {
+        clearToHomeState();
+        return;
+      }
+      setQuery(urlQ);
+      if (termsAccepted) {
+        runSearch(urlQ, false);
+      }
+    }
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [clearToHomeState, runSearch, termsAccepted]);
 
   function handleAcceptTerms(e: React.FormEvent) {
     e.preventDefault();
@@ -226,7 +360,7 @@ export function MagnetSearch() {
     }
     setTermsAccepted(true);
     if (query.trim()) {
-      runSearch(query);
+      runSearch(query, false);
     }
   }
 
@@ -243,7 +377,7 @@ export function MagnetSearch() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!termsAccepted) return;
-    runSearch(query);
+    runSearch(query, true);
   }
 
   async function resolveMagnet(item: TorrentResult): Promise<string | null> {
@@ -298,6 +432,17 @@ export function MagnetSearch() {
     }
   }
 
+  const { matchedResults, otherResults } = useMemo(() => {
+    if (!searchData?.media) {
+      return { matchedResults: [] as TorrentResult[], otherResults: results };
+    }
+    const matched = results.filter((r) => r.isExactMatch);
+    const others = results.filter((r) => !r.isExactMatch);
+    return { matchedResults: matched, otherResults: others };
+  }, [results, searchData?.media]);
+
+  const showSplitMediaGroups = Boolean(searchData?.media && matchedResults.length > 0);
+
   return (
     <div className="min-h-screen bg-[#070709] text-white">
       <AdvisoryBanner termsAccepted={termsAccepted} onResetTerms={handleResetTerms} />
@@ -310,11 +455,29 @@ export function MagnetSearch() {
               Distributed Magnet Search Engine
             </p>
             <h1 className="mt-1 text-3xl font-black tracking-tighter text-white sm:text-4xl">
-              MAGNET<span className="text-red-500">2</span>TORRENT
+              <a
+                href="/"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleGoHome();
+                }}
+                className="transition hover:text-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-500"
+              >
+                MAGNET<span className="text-red-500">2</span>TORRENT
+              </a>
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
+            {(searchData || loading || error) && termsAccepted && (
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="rounded-md border border-zinc-700 bg-zinc-900 px-3.5 py-2 font-mono text-xs font-semibold tracking-wide text-zinc-100 uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-red-600 hover:bg-zinc-800 hover:text-white active:translate-y-px"
+              >
+                Back
+              </button>
+            )}
             <span className="hidden border border-zinc-800 bg-zinc-950 px-3 py-1.5 font-mono text-[11px] text-zinc-300 sm:inline-block">
               {PROVIDERS.length} SOURCES INDEXED
             </span>
@@ -413,7 +576,7 @@ export function MagnetSearch() {
                 className="flex flex-col border border-zinc-700 bg-[#101014] p-1.5 transition focus-within:border-red-600 sm:flex-row sm:items-stretch"
               >
                 <label htmlFor="torrent-search" className="sr-only">
-                  Search all torrent sources
+                  Search torrents
                 </label>
                 <input
                   id="torrent-search"
@@ -426,9 +589,9 @@ export function MagnetSearch() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="min-h-[46px] min-w-[148px] rounded-md bg-gradient-to-b from-red-600 to-red-700 px-6 py-3 font-mono text-xs font-bold tracking-widest text-white uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_2px_12px_rgba(185,28,28,0.4)] transition hover:from-red-500 hover:to-red-600 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_20px_rgba(220,38,38,0.5)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55"
+                  className="min-h-[46px] min-w-[140px] rounded-md bg-gradient-to-b from-red-600 to-red-700 px-6 py-3 font-mono text-xs font-bold tracking-widest text-white uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_2px_12px_rgba(185,28,28,0.4)] transition hover:from-red-500 hover:to-red-600 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_20px_rgba(220,38,38,0.5)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-55"
                 >
-                  {loading ? 'Querying…' : 'Search All'}
+                  {loading ? 'Searching…' : 'Search'}
                 </button>
               </form>
             </section>
@@ -450,7 +613,7 @@ export function MagnetSearch() {
               </div>
             )}
 
-            {/* Pre-Search Index Grid */}
+            {/* Pre-Search Index Grid (Home) */}
             {!loading && !searchData && (
               <section aria-label="Active torrent index roster" className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -491,7 +654,7 @@ export function MagnetSearch() {
                   Querying {PROVIDERS.length} Sources…
                 </p>
                 <p className="mt-1.5 text-xs text-zinc-400">
-                  Aggregating results and sorting by seed count
+                  Aggregating results and sorting by highest seeders
                 </p>
               </div>
             )}
@@ -543,14 +706,7 @@ export function MagnetSearch() {
                 </aside>
 
                 {/* Right Results Feed */}
-                <section aria-label="Search results" className="lg:col-span-8">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
-                    <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-200 uppercase">
-                      Results // {results.length} Shown of {searchData.totalRawHits} Fetched
-                    </h2>
-                    <span className="font-mono text-[11px] text-zinc-400">SORT: SEEDS DESC</span>
-                  </div>
-
+                <section aria-label="Search results" className="space-y-6 lg:col-span-8">
                   {results.length === 0 ? (
                     <div className="border border-zinc-800 bg-[#101014] px-6 py-12 text-center">
                       <p className="text-sm font-bold text-white">
@@ -560,79 +716,84 @@ export function MagnetSearch() {
                         Try different keywords or inspect source availability on the left.
                       </p>
                     </div>
+                  ) : showSplitMediaGroups ? (
+                    <>
+                      {/* Tier 1: Specific Matched Movie / Series Torrents */}
+                      <div>
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-red-800/60 pb-2.5">
+                          <h2 className="font-mono text-xs font-bold tracking-widest text-white uppercase">
+                            <span className="text-red-400">Matched: </span>
+                            {searchData.media!.name} // {matchedResults.length} Results
+                          </h2>
+                          <span className="font-mono text-[11px] text-zinc-400">
+                            HIGHEST SEEDERS FIRST
+                          </span>
+                        </div>
+                        <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
+                          {matchedResults.map((item, idx) => (
+                            <ResultRow
+                              key={item.id}
+                              item={item}
+                              rank={idx + 1}
+                              busy={resolvingId === item.id}
+                              copied={copiedId === item.id}
+                              onCopy={handleCopy}
+                              onLaunch={handleLaunch}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tier 2: Rest of Search Results */}
+                      {otherResults.length > 0 && (
+                        <div>
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+                            <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-300 uppercase">
+                              Rest of Search Results // {otherResults.length} Results
+                            </h2>
+                            <span className="font-mono text-[11px] text-zinc-400">
+                              HIGHEST SEEDERS FIRST
+                            </span>
+                          </div>
+                          <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
+                            {otherResults.map((item, idx) => (
+                              <ResultRow
+                                key={item.id}
+                                item={item}
+                                rank={matchedResults.length + idx + 1}
+                                busy={resolvingId === item.id}
+                                copied={copiedId === item.id}
+                                onCopy={handleCopy}
+                                onLaunch={handleLaunch}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
-                    <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
-                      {results.map((item, idx) => {
-                        const busy = resolvingId === item.id;
-                        const copied = copiedId === item.id;
-
-                        return (
-                          <article
+                    <div>
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+                        <h2 className="font-mono text-xs font-bold tracking-widest text-zinc-200 uppercase">
+                          Results // {results.length} Shown of {searchData.totalRawHits} Fetched
+                        </h2>
+                        <span className="font-mono text-[11px] text-zinc-400">
+                          HIGHEST SEEDERS FIRST
+                        </span>
+                      </div>
+                      <div className="divide-y divide-zinc-800 border border-zinc-800 bg-[#101014]">
+                        {results.map((item, idx) => (
+                          <ResultRow
                             key={item.id}
-                            className="p-4 transition hover:bg-zinc-900/60"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-400">
-                                  <span className="font-bold text-red-400">
-                                    {String(idx + 1).padStart(2, '0')}
-                                  </span>
-                                  <span>//</span>
-                                  <span className="font-semibold text-zinc-200">
-                                    {item.provider}
-                                  </span>
-                                  {item.time && (
-                                    <>
-                                      <span>·</span>
-                                      <span>{item.time}</span>
-                                    </>
-                                  )}
-                                </div>
-                                <h3 className="mt-1 text-sm leading-snug font-semibold text-white break-words sm:text-base">
-                                  {item.title}
-                                </h3>
-                              </div>
-                            </div>
-
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
-                                <span className="border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-zinc-200">
-                                  {item.size}
-                                </span>
-                                <span
-                                  className={`border px-2 py-0.5 font-semibold ${seedClass(
-                                    item.seeds
-                                  )}`}
-                                >
-                                  Seeds: {item.seeds}
-                                </span>
-                                <span className="border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-zinc-300">
-                                  Peers: {item.peers}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => handleCopy(item)}
-                                  className="min-h-[36px] rounded-md border border-zinc-700 bg-zinc-900 px-3.5 py-1.5 font-mono text-[11px] font-semibold tracking-wider text-zinc-100 uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-zinc-500 hover:bg-zinc-800 hover:text-white active:translate-y-px disabled:opacity-50"
-                                >
-                                  {copied ? 'Copied' : 'Copy'}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={busy}
-                                  onClick={() => handleLaunch(item)}
-                                  className="min-h-[36px] rounded-md bg-gradient-to-b from-red-600 to-red-700 px-4 py-1.5 font-mono text-[11px] font-bold tracking-wider text-white uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_2px_10px_rgba(185,28,28,0.35)] transition hover:from-red-500 hover:to-red-600 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_4px_16px_rgba(220,38,38,0.45)] active:translate-y-px disabled:opacity-50"
-                                >
-                                  {busy ? 'Fetching…' : 'Launch'}
-                                </button>
-                              </div>
-                            </div>
-                          </article>
-                        );
-                      })}
+                            item={item}
+                            rank={idx + 1}
+                            busy={resolvingId === item.id}
+                            copied={copiedId === item.id}
+                            onCopy={handleCopy}
+                            onLaunch={handleLaunch}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </section>

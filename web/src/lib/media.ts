@@ -29,6 +29,10 @@ function normalizeTitle(str: string): string {
     .trim();
 }
 
+function stripLeadingGroupTags(title: string): string {
+  return title.replace(/^(\s*\[[^\]]+\]\s*)+/, '').trim();
+}
+
 function stripHtml(html?: string | null): string | undefined {
   if (!html) return undefined;
   const cleaned = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -217,7 +221,6 @@ export async function resolveMatchedMedia(
   const { cleaned, movie, series } = prefetched;
   if (!movie && !series) return null;
 
-  // Verify the fetched torrents look like video/movie/series content (avoids matching OS/apps)
   const sample = torrentResults.slice(0, 20);
   if (sample.length === 0) return null;
 
@@ -271,4 +274,67 @@ export async function resolveMatchedMedia(
     }
     return null;
   }
+}
+
+export function isTorrentMatchingMedia(torrentTitle: string, media: MediaMetadata): boolean {
+  const normMedia = normalizeTitle(media.name);
+  if (!normMedia) return false;
+
+  const withoutGroups = stripLeadingGroupTags(torrentTitle);
+  const normTorrent = normalizeTitle(withoutGroups);
+
+  // Must start cleanly with the matched title (word boundary)
+  if (normTorrent !== normMedia && !normTorrent.startsWith(`${normMedia} `)) {
+    return false;
+  }
+
+  // Exclude episodic TV torrents from Movie exact matches
+  if (media.type === 'movie' && SERIES_SIGNAL_RE.test(torrentTitle)) {
+    return false;
+  }
+
+  // For movies, verify release year matches within +-1 year if a 4-digit year appears in torrent title
+  if (media.type === 'movie' && media.year) {
+    const mediaYearMatch = media.year.match(/\b(19\d{2}|20\d{2})\b/);
+    const torrentYearMatch = torrentTitle.match(/\b(19\d{2}|20\d{2})\b/);
+    if (mediaYearMatch && torrentYearMatch) {
+      const mYear = Number(mediaYearMatch[1]);
+      const tYear = Number(torrentYearMatch[1]);
+      if (Math.abs(mYear - tYear) > 1) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+export function partitionAndSortResults(
+  sortedBySeeds: TorrentResult[],
+  media: MediaMetadata | null
+): TorrentResult[] {
+  if (!media) {
+    return sortedBySeeds.slice(0, 60);
+  }
+
+  const matched: TorrentResult[] = [];
+  const rest: TorrentResult[] = [];
+
+  for (const item of sortedBySeeds) {
+    if (isTorrentMatchingMedia(item.title, media)) {
+      matched.push({ ...item, isExactMatch: true });
+    } else {
+      rest.push({ ...item, isExactMatch: false });
+    }
+  }
+
+  // Already sorted by seeds descending, enforce explicitly
+  matched.sort((a, b) => b.seeds - a.seeds);
+  rest.sort((a, b) => b.seeds - a.seeds);
+
+  const topMatched = matched.slice(0, 45);
+  const remainingSlots = Math.max(20, 70 - topMatched.length);
+  const topRest = rest.slice(0, remainingSlots);
+
+  return [...topMatched, ...topRest];
 }

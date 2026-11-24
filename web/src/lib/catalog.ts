@@ -10,6 +10,7 @@ export interface TorrentResult {
   magnet?: string;
   desc?: string;
   link?: string;
+  isExactMatch?: boolean;
 }
 
 export interface ProviderInfo {

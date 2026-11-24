@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllProviders } from '@/lib/providers';
-import { prefetchMediaCandidates, resolveMatchedMedia } from '@/lib/media';
+import {
+  partitionAndSortResults,
+  prefetchMediaCandidates,
+  resolveMatchedMedia,
+} from '@/lib/media';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 10;
@@ -30,12 +34,13 @@ export async function GET(request: NextRequest) {
     ]);
 
     const media = await resolveMatchedMedia(candidates, searchOut.results);
+    const results = partitionAndSortResults(searchOut.results, media);
 
     return NextResponse.json(
       {
         query,
         totalRawHits: searchOut.totalRawHits,
-        results: searchOut.results,
+        results,
         providerStats: searchOut.providerStats,
         media,
         durationMs: Date.now() - startedAt,

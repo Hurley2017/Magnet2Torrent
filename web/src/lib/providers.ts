@@ -2,7 +2,6 @@ import * as cheerio from 'cheerio';
 import { PROVIDERS, type ProviderStat, type TorrentResult } from './catalog';
 
 const PROVIDER_TIMEOUT_MS = 3500;
-const DEFAULT_RESULT_CAP = 60;
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -534,7 +533,7 @@ export async function searchAllProviders(query: string): Promise<{
   const providerStats = settled.map((s) => s.stat);
   const rawResults = settled.flatMap((s) => s.items);
 
-  const sorted = [...rawResults].sort((a, b) => b.seeds - a.seeds).slice(0, DEFAULT_RESULT_CAP);
+  const sorted = [...rawResults].sort((a, b) => b.seeds - a.seeds);
 
   return {
     results: sorted,
