@@ -16,9 +16,9 @@ export interface CategoryOption {
 export const CATEGORIES: CategoryOption[] = [
   { key: 'All', label: 'All' },
   { key: 'Movies', label: 'Movies' },
-  { key: 'TV', label: 'TV Shows' },
+  { key: 'TV', label: 'Series' },
   { key: 'Music', label: 'Music' },
-  { key: 'Applications', label: 'Apps / Software' },
+  { key: 'Applications', label: 'Apps' },
   { key: 'Books', label: 'Books' },
   { key: 'Games', label: 'Games' },
   { key: 'Anime', label: 'Anime' },
@@ -54,12 +54,31 @@ export interface ProviderStat {
   error?: string;
 }
 
+export interface MediaMetadata {
+  type: 'movie' | 'series';
+  name: string;
+  poster?: string;
+  rating?: string;
+  year?: string;
+  runtime?: string;
+  genres: string[];
+  director?: string[];
+  cast?: string[];
+  description?: string;
+  country?: string;
+  awards?: string;
+  episodesCount?: number;
+  seasonsCount?: number;
+  imdbId?: string;
+}
+
 export interface SearchResponse {
   query: string;
   category: CategoryKey;
   totalRawHits: number;
   results: TorrentResult[];
   providerStats: ProviderStat[];
+  media: MediaMetadata | null;
   durationMs: number;
 }
 

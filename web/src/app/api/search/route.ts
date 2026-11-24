@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchAllProviders } from '@/lib/providers';
+import { fetchMediaMetadata } from '@/lib/media';
 import { CATEGORIES, type CategoryKey } from '@/lib/catalog';
 
 export const dynamic = 'force-dynamic';
@@ -32,18 +33,19 @@ export async function GET(request: NextRequest) {
 
   const startedAt = Date.now();
   try {
-    const { results, totalRawHits, providerStats } = await searchAllProviders(
-      query,
-      category
-    );
+    const [searchOut, media] = await Promise.all([
+      searchAllProviders(query, category),
+      fetchMediaMetadata(query, category),
+    ]);
 
     return NextResponse.json(
       {
         query,
         category,
-        totalRawHits,
-        results,
-        providerStats,
+        totalRawHits: searchOut.totalRawHits,
+        results: searchOut.results,
+        providerStats: searchOut.providerStats,
+        media,
         durationMs: Date.now() - startedAt,
       },
       {
