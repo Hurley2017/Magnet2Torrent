@@ -1,10 +1,5 @@
 import * as cheerio from 'cheerio';
-import {
-  PROVIDERS,
-  type CategoryKey,
-  type ProviderStat,
-  type TorrentResult,
-} from './catalog';
+import { PROVIDERS, type ProviderStat, type TorrentResult } from './catalog';
 
 const PROVIDER_TIMEOUT_MS = 3500;
 const DEFAULT_RESULT_CAP = 60;
@@ -132,20 +127,10 @@ function formatAgeFromEpoch(epochSec: number): string {
   return new Date(epochSec * 1000).toISOString().slice(0, 10);
 }
 
-// ─── Individual Provider Implementations ─────────────────────────────────────
+// ─── Individual Provider Implementations (All Categories) ────────────────────
 
-async function searchThePirateBay(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  const catMap: Partial<Record<CategoryKey, string>> = {
-    All: '',
-    Music: '100',
-    Movies: '200',
-    TV: '200',
-    Applications: '300',
-    Games: '400',
-  };
-  const cat = catMap[category] ?? '';
-  const url = `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=${cat}`;
-
+async function searchThePirateBay(query: string): Promise<TorrentResult[]> {
+  const url = `https://apibay.org/q.php?q=${encodeURIComponent(query)}&cat=`;
   type TpbItem = {
     id: string;
     name: string;
@@ -185,28 +170,7 @@ async function searchThePirateBay(query: string, category: CategoryKey): Promise
     });
 }
 
-async function searchKnaben(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  const catIds: Partial<Record<CategoryKey, number[]>> = {
-    Music: [1000000],
-    TV: [2000000],
-    Movies: [3000000],
-    Applications: [4000000],
-    Anime: [6000000],
-    Games: [7000000],
-    Books: [9000000],
-  };
-
-  const payload: Record<string, unknown> = {
-    query,
-    size: 35,
-    order_by: 'seeders',
-    order_direction: 'desc',
-    hide_unsafe: true,
-  };
-  if (category !== 'All' && catIds[category]) {
-    payload.categories = catIds[category];
-  }
-
+async function searchKnaben(query: string): Promise<TorrentResult[]> {
   type KnabenHit = {
     id: string;
     title: string;
@@ -221,7 +185,13 @@ async function searchKnaben(query: string, category: CategoryKey): Promise<Torre
 
   const json = await fetchJson<{ hits?: KnabenHit[] }>('https://api.knaben.org/v1', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      query,
+      size: 35,
+      order_by: 'seeders',
+      order_direction: 'desc',
+      hide_unsafe: true,
+    }),
   });
 
   if (!Array.isArray(json?.hits)) return [];
@@ -272,15 +242,8 @@ async function searchTorrentsCsv(query: string): Promise<TorrentResult[]> {
     }));
 }
 
-async function searchInternetArchive(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  const mediaFilterMap: Partial<Record<CategoryKey, string>> = {
-    Movies: ' AND mediatype:movies',
-    Music: ' AND mediatype:audio',
-    Books: ' AND mediatype:texts',
-    Applications: ' AND mediatype:software',
-  };
-  const extra = mediaFilterMap[category] ?? '';
-  const searchExpr = `(${query}) AND format:"Archive BitTorrent"${extra}`;
+async function searchInternetArchive(query: string): Promise<TorrentResult[]> {
+  const searchExpr = `(${query}) AND format:"Archive BitTorrent"`;
   const url =
     `https://archive.org/advancedsearch.php?q=${encodeURIComponent(searchExpr)}` +
     '&fl%5B%5D=identifier,title,item_size,btih,downloads,publicdate&sort%5B%5D=downloads+desc&rows=20&output=json';
@@ -317,19 +280,9 @@ async function searchInternetArchive(query: string, category: CategoryKey): Prom
     });
 }
 
-async function searchLimeTorrents(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  const catMap: Partial<Record<CategoryKey, string>> = {
-    All: 'all',
-    Movies: 'movies',
-    TV: 'tv',
-    Games: 'games',
-    Music: 'music',
-    Applications: 'applications',
-    Anime: 'anime',
-  };
-  const cat = catMap[category] ?? 'all';
+async function searchLimeTorrents(query: string): Promise<TorrentResult[]> {
   const baseUrl = 'https://www.limetorrents.lol';
-  const url = `${baseUrl}/search/${cat}/${encodeURIComponent(query)}/seeds/1/`;
+  const url = `${baseUrl}/search/all/${encodeURIComponent(query)}/seeds/1/`;
 
   const html = await fetchText(url);
   const $ = cheerio.load(html);
@@ -376,14 +329,9 @@ async function searchLimeTorrents(query: string, category: CategoryKey): Promise
   return results;
 }
 
-async function searchNyaa(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  if (category !== 'All' && category !== 'Anime' && category !== 'Books' && category !== 'Music') {
-    return [];
-  }
-
-  const catCode = category === 'Anime' ? '1_0' : category === 'Books' ? '3_0' : category === 'Music' ? '2_0' : '0_0';
+async function searchNyaa(query: string): Promise<TorrentResult[]> {
   const baseUrl = 'https://nyaa.si';
-  const url = `${baseUrl}/?f=0&c=${catCode}&q=${encodeURIComponent(query)}&s=seeders&o=desc`;
+  const url = `${baseUrl}/?f=0&c=0_0&q=${encodeURIComponent(query)}&s=seeders&o=desc`;
 
   const html = await fetchText(url);
   const $ = cheerio.load(html);
@@ -419,15 +367,9 @@ async function searchNyaa(query: string, category: CategoryKey): Promise<Torrent
   return results;
 }
 
-async function searchSubsPlease(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  if (category !== 'All' && category !== 'Anime') {
-    return [];
-  }
-
+async function searchSubsPlease(query: string): Promise<TorrentResult[]> {
   const url = `https://subsplease.org/api/?f=search&tz=UTC&s=${encodeURIComponent(query)}`;
   type SpRelease = {
-    show?: string;
-    episode?: string;
     release_date?: string;
     page?: string;
     downloads?: Array<{ res: string; magnet: string }>;
@@ -461,20 +403,9 @@ async function searchSubsPlease(query: string, category: CategoryKey): Promise<T
   return out;
 }
 
-async function search1337x(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  const catMap: Partial<Record<CategoryKey, string>> = {
-    Movies: 'Movies',
-    TV: 'TV',
-    Games: 'Games',
-    Music: 'Music',
-    Anime: 'Anime',
-    Applications: 'Apps',
-  };
-  const mapped = catMap[category];
+async function search1337x(query: string): Promise<TorrentResult[]> {
   const baseUrl = 'https://www.1337x.to';
-  const url = mapped
-    ? `${baseUrl}/category-search/${encodeURIComponent(query)}/${mapped}/1/`
-    : `${baseUrl}/search/${encodeURIComponent(query)}/1/`;
+  const url = `${baseUrl}/search/${encodeURIComponent(query)}/1/`;
 
   const html = await fetchText(url);
   const $ = cheerio.load(html);
@@ -510,11 +441,7 @@ async function search1337x(query: string, category: CategoryKey): Promise<Torren
   return results;
 }
 
-async function searchEztv(query: string, category: CategoryKey): Promise<TorrentResult[]> {
-  if (category !== 'All' && category !== 'TV') {
-    return [];
-  }
-
+async function searchEztv(query: string): Promise<TorrentResult[]> {
   const baseUrl = 'https://eztvx.to';
   const slug = encodeURIComponent(query.trim().replace(/\s+/g, '-'));
   const url = `${baseUrl}/search/${slug}`;
@@ -551,7 +478,7 @@ async function searchEztv(query: string, category: CategoryKey): Promise<Torrent
   return results;
 }
 
-const PROVIDER_RUNNERS: Record<string, (query: string, category: CategoryKey) => Promise<TorrentResult[]>> = {
+const PROVIDER_RUNNERS: Record<string, (query: string) => Promise<TorrentResult[]>> = {
   ThePirateBay: searchThePirateBay,
   Knaben: searchKnaben,
   TorrentsCSV: searchTorrentsCsv,
@@ -565,26 +492,16 @@ const PROVIDER_RUNNERS: Record<string, (query: string, category: CategoryKey) =>
 
 // ─── Unified Search & Magnet Resolution ──────────────────────────────────────
 
-export async function searchAllProviders(
-  query: string,
-  category: CategoryKey = 'All'
-): Promise<{
+export async function searchAllProviders(query: string): Promise<{
   results: TorrentResult[];
   totalRawHits: number;
   providerStats: ProviderStat[];
 }> {
   const tasks = PROVIDERS.map(async (info): Promise<{ stat: ProviderStat; items: TorrentResult[] }> => {
-    if (!info.categories.includes(category)) {
-      return {
-        stat: { name: info.name, status: 'skipped', count: 0, durationMs: 0 },
-        items: [],
-      };
-    }
-
     const runner = PROVIDER_RUNNERS[info.name];
     const start = Date.now();
     try {
-      const items = await runner(query, category);
+      const items = await runner(query);
       const durationMs = Date.now() - start;
       return {
         stat: {
@@ -598,7 +515,8 @@ export async function searchAllProviders(
     } catch (err) {
       const durationMs = Date.now() - start;
       const message = err instanceof Error ? err.message : 'Unavailable';
-      const isTimeout = message.includes('abort') || message.includes('Timeout') || message.includes('timed out');
+      const isTimeout =
+        message.includes('abort') || message.includes('Timeout') || message.includes('timed out');
       return {
         stat: {
           name: info.name,
@@ -616,20 +534,7 @@ export async function searchAllProviders(
   const providerStats = settled.map((s) => s.stat);
   const rawResults = settled.flatMap((s) => s.items);
 
-  // Mirror CLI TV pattern filter when TV category is active (fallback to all if none match)
-  let filtered = rawResults;
-  if (category === 'TV' && rawResults.length > 0) {
-    const tvPattern = /\bS\d{1,2}E\d{1,2}\b|\bSeason\b|\bComplete Series\b/i;
-    const tvMatches = rawResults.filter((r) => tvPattern.test(r.title));
-    if (tvMatches.length > 0) {
-      filtered = tvMatches;
-    }
-  }
-
-  // Sort descending by seeds, keeping results cleanly bounded for fast rendering
-  const sorted = [...filtered]
-    .sort((a, b) => b.seeds - a.seeds)
-    .slice(0, DEFAULT_RESULT_CAP);
+  const sorted = [...rawResults].sort((a, b) => b.seeds - a.seeds).slice(0, DEFAULT_RESULT_CAP);
 
   return {
     results: sorted,

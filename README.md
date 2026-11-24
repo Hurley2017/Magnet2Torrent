@@ -25,12 +25,11 @@ A fast terminal CLI and Next.js Web application to search for titles across mult
 
 The Web port provides full feature parity in your browser with Next.js App Router serverless API routes ready for **Vercel**:
 
-- **Concurrent Provider Search** (`/api/search`) across 9 public sources (`ThePirateBay`, `Knaben`, `TorrentsCSV`, `LimeTorrents`, `InternetArchive`, `Nyaa`, `SubsPlease`, `1337x`, `EZTV`) with live fetch counts & up/down status
-- **Movie & Series Details**: Fetches poster artwork, IMDb rating, runtime, genres, and synopsis when searching `Movies` or `Series`
+- **Concurrent Provider Search** (`/api/search`) across all 9 public sources (`ThePirateBay`, `Knaben`, `TorrentsCSV`, `LimeTorrents`, `InternetArchive`, `Nyaa`, `SubsPlease`, `1337x`, `EZTV`) with live fetch counts & up/down ledger
+- **Automatic Movie & Series Details**: Detects movie/series queries and fetches poster artwork, IMDb rating, runtime, genres, and synopsis automatically
 - **On-Demand Magnet Resolution** (`/api/magnet`) with SSRF allowlist protection
-- **One-Click Torrent Client Launch** (`magnet:` URI trigger) + Copy Magnet fallback strip
-- **Type of Torrent Filtering** (`All`, `Movies`, `Series`, `Music`, `Apps`, `Books`, `Games`, `Anime`) with shareable URL parameters
-- **Mandatory Legal Terms Gate**: Requires users to accept the anti-piracy legal terms before searching in the red, grey, black, and white text-first UI
+- **One-Click Torrent Client Launch** (`magnet:` URI trigger) + Copy Magnet strip
+- **Mandatory Legal Terms Gate**: Requires users to accept the anti-piracy legal terms before searching in the red, grey, black, and white split-workspace UI
 
 ### Run Web App Locally
 
