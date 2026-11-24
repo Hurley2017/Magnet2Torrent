@@ -94,16 +94,14 @@ function MagnetIcon({ className = 'h-4 w-4' }: { className?: string }) {
       fill="none"
       className={className}
     >
-      <g transform="rotate(-45 16 16)">
-        <path
-          d="M9 7v9a7 7 0 0 0 14 0V7h-4.5v9a2.5 2.5 0 0 1-5 0V7H9z"
-          fill="#dc2626"
-        />
-        <rect x="9" y="6" width="4.5" height="4.2" rx="0.8" fill="#ffffff" />
-        <rect x="18.5" y="6" width="4.5" height="4.2" rx="0.8" fill="#ffffff" />
-        <rect x="9" y="10.2" width="4.5" height="1.2" fill="#a1a1aa" />
-        <rect x="18.5" y="10.2" width="4.5" height="1.2" fill="#a1a1aa" />
-      </g>
+      <path
+        d="M7.5 10.5V19a8.5 8.5 0 0 0 17 0v-8.5"
+        stroke="#ef4444"
+        strokeWidth="5.5"
+        strokeLinecap="butt"
+      />
+      <path d="M4.75 3.5h5.5v5h-5.5zM21.75 3.5h5.5v5h-5.5z" fill="#a1a1aa" />
+      <path d="M4.75 8.5h5.5v1.6h-5.5zM21.75 8.5h5.5v1.6h-5.5z" fill="#27272a" />
     </svg>
   );
 }
