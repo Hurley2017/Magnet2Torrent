@@ -23,5 +23,7 @@ desktop.ini
 # Build / Release output
 dist/
 build/
+.next/
+.vercel/
 *.zip
 *.tar.gz
