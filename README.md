@@ -1,11 +1,11 @@
-# 🧲 Magnet2Torrent (CLI & Web)
+# 🧲 Magnet2Torrent (Desktop, Web & CLI)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-lightgrey.svg)]()
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen.svg)](https://nodejs.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20Desktop%20%7C%20macOS%20%7C%20Linux%20%7C%20Web-lightgrey.svg)]()
 [![GitHub Release](https://img.shields.io/github/v/release/Hurley2017/Magnet2Torrent)](https://github.com/Hurley2017/Magnet2Torrent/releases)
 
-A fast terminal CLI and Next.js Web application to search for titles across multiple public BitTorrent providers and instantly launch magnet links directly in your default BitTorrent client (qBittorrent, Transmission, Deluge, uTorrent, etc.).
+Search across public BitTorrent providers with automatic movie/series metadata, stream directly to **VLC Media Player** from the **Electron Desktop App** (or CLI), or launch magnet links from the Next.js Web app.
 
 ---
 
@@ -18,6 +18,29 @@ A fast terminal CLI and Next.js Web application to search for titles across mult
 > - Users are solely responsible for ensuring that they have the legal right or license to download any content accessed through this software.
 > 
 > For full details, please review the [Legal Disclaimer](DISCLAIMER.md).
+
+---
+
+## 🖥️ Desktop Application (`desktop/`)
+
+A standalone **Electron** desktop app featuring the red, grey, black, and white UI, automatic movie/series dossiers, multi-provider ledger, and **direct one-click VLC playback**:
+
+### Windows PowerShell One-Line Installer (`iex`)
+
+```powershell
+irm https://raw.githubusercontent.com/Hurley2017/Magnet2Torrent/main/install.ps1 | iex
+```
+
+This checks Node.js `>= 22.12`, installs `Magnet2Torrent Desktop` into `%LOCALAPPDATA%\Magnet2Torrent\app\desktop`, fetches the Electron runtime and WebTorrent P2P dependencies, creates **Desktop & Start Menu shortcuts** (`Magnet2Torrent`), detects VLC, and registers `magnet2torrent` on User `PATH`.
+
+### Run Desktop App From Source
+
+```bash
+cd desktop
+npm install
+node node_modules/electron/install.js
+npm start
+```
 
 ---
 
@@ -68,21 +91,21 @@ npx vercel --prod
 
 ## 📋 Prerequisites
 
-- **[Node.js](https://nodejs.org/)** v22.0.0 or higher (LTS)
-- **[VLC Media Player](https://www.videolan.org/)** (optional, required for `--vlc` / `stream` direct local playback)
+- **[Node.js](https://nodejs.org/)** v22.12.0 or higher (LTS)
+- **[VLC Media Player](https://www.videolan.org/)** (recommended for direct streaming in Desktop & `--vlc` in CLI)
 - A registered BitTorrent client installed on your system (e.g., [qBittorrent](https://www.qbittorrent.org/), [Transmission](https://transmissionbt.com/), [Deluge](https://deluge-torrent.org/))
 
 ---
 
 ## 📥 CLI Installation
 
-### Option 1: Windows PowerShell One-Liner (`iex`)
+### Option 1: Windows Desktop + Launcher (`iex`)
 
 ```powershell
 irm https://raw.githubusercontent.com/Hurley2017/Magnet2Torrent/main/install.ps1 | iex
 ```
 
-This checks Node.js, downloads the latest CLI into `%LOCALAPPDATA%\Magnet2Torrent`, installs production dependencies, detects VLC, and adds `magnet2torrent` to your User `PATH`.
+Installs the standalone Electron Desktop app with Desktop/Start Menu shortcuts and registers `magnet2torrent`. For terminal-only CLI mode, clone & run Option 2 below.
 
 ### Option 2: Clone & Run
 

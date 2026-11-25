@@ -1,4 +1,4 @@
-# Magnet2Torrent CLI Windows Installer (PowerShell iex)
+# Magnet2Torrent Desktop Windows Installer (PowerShell iex)
 # Usage: irm https://raw.githubusercontent.com/Hurley2017/Magnet2Torrent/main/install.ps1 | iex
 
 $ErrorActionPreference = 'Stop'
@@ -16,12 +16,13 @@ $ArchiveUrl = "https://github.com/$RepoOwner/$RepoName/archive/refs/heads/$Branc
 
 $InstallRoot = Join-Path $env:LOCALAPPDATA 'Magnet2Torrent'
 $AppDir = Join-Path $InstallRoot 'app'
+$DesktopDir = Join-Path $AppDir 'desktop'
 $BinDir = Join-Path $InstallRoot 'bin'
-$TempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("m2t-install-" + [Guid]::NewGuid().ToString('N'))
+$TempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("m2t-desktop-install-" + [Guid]::NewGuid().ToString('N'))
 
 Write-Host ''
 Write-Host '  ==================================================================' -ForegroundColor Cyan
-Write-Host '                    Magnet2Torrent CLI Installer                    ' -ForegroundColor Cyan
+Write-Host '                 Magnet2Torrent Desktop Installer                   ' -ForegroundColor Cyan
 Write-Host '  ==================================================================' -ForegroundColor Cyan
 Write-Host '  [!] ADVISORY: Intended strictly for legal, open-source, and' -ForegroundColor Yellow
 Write-Host '      public-domain P2P file distribution. Do NOT use for piracy.' -ForegroundColor Yellow
@@ -36,41 +37,49 @@ function Refresh-SessionPath {
     $env:Path = ($parts | Where-Object { $_ -and $_.Trim() -ne '' } | Select-Object -Unique) -join ';'
 }
 
-function Get-NodeMajorVersion {
+function Get-NodeInfo {
     $nodeCmd = Get-Command node.exe -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
         $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     }
     if (-not $nodeCmd) { return $null }
     try {
-        $raw = (& $nodeCmd.Source -p "process.versions.node.split('.')[0]" 2>$null).Trim()
-        return [int]$raw
+        $raw = (& $nodeCmd.Source -p "process.versions.node" 2>$null).Trim()
+        $parts = $raw.Split('.')
+        return @{
+            Source = $nodeCmd.Source
+            Major  = [int]$parts[0]
+            Minor  = [int]$parts[1]
+            Version = $raw
+        }
     } catch {
         return $null
     }
 }
 
-$nodeMajor = Get-NodeMajorVersion
-if (-not $nodeMajor -or $nodeMajor -lt 22) {
-    Write-Host '[*] Node.js >= 22 is required. Checking winget to install OpenJS.NodeJS.LTS...' -ForegroundColor Cyan
+$nodeInfo = Get-NodeInfo
+$nodeTooOld = (-not $nodeInfo) -or ($nodeInfo.Major -lt 22) -or ($nodeInfo.Major -eq 22 -and $nodeInfo.Minor -lt 12)
+if ($nodeTooOld) {
+    Write-Host '[*] Node.js >= 22.12 is required. Checking winget to install OpenJS.NodeJS.LTS...' -ForegroundColor Cyan
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
     if ($winget) {
         & $winget.Source install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
         Refresh-SessionPath
-        $nodeMajor = Get-NodeMajorVersion
+        $nodeInfo = Get-NodeInfo
+        $nodeTooOld = (-not $nodeInfo) -or ($nodeInfo.Major -lt 22) -or ($nodeInfo.Major -eq 22 -and $nodeInfo.Minor -lt 12)
     }
-    if (-not $nodeMajor -or $nodeMajor -lt 22) {
-        throw 'Node.js >= 22 was not found. Install Node.js LTS from https://nodejs.org/ and re-run this installer.'
+    if ($nodeTooOld) {
+        throw 'Node.js >= 22.12 was not found. Install Node.js LTS from https://nodejs.org/ and re-run this installer.'
     }
 }
-Write-Host "[+] Node.js v$nodeMajor detected." -ForegroundColor Green
+Write-Host "[+] Node.js v$($nodeInfo.Version) detected." -ForegroundColor Green
 
 try {
     New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
     $ZipPath = Join-Path $TempDir 'repo.zip'
     $ExtractDir = Join-Path $TempDir 'extracted'
 
-    Write-Host "[*] Downloading Magnet2Torrent CLI from GitHub ($Branch)..." -ForegroundColor Cyan
+    Write-Host "[*] Downloading Magnet2Torrent Desktop from GitHub ($Branch)..." -ForegroundColor Cyan
     Invoke-WebRequest -Uri $ArchiveUrl -OutFile $ZipPath -UseBasicParsing
 
     Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir -Force
@@ -79,31 +88,33 @@ try {
         throw 'Downloaded archive was empty or could not be extracted.'
     }
 
-    if (Test-Path $AppDir) {
-        $ExistingModules = Join-Path $AppDir 'node_modules'
-        $BackupModules = Join-Path $TempDir 'node_modules_backup'
-        if (Test-Path $ExistingModules) {
-            Move-Item -Path $ExistingModules -Destination $BackupModules -Force
-        }
-        Remove-Item -Path $AppDir -Recurse -Force
-        New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
-        if (Test-Path $BackupModules) {
-            Move-Item -Path $BackupModules -Destination (Join-Path $AppDir 'node_modules') -Force
-        }
-    } else {
-        New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
+    $SourceDesktop = Join-Path $SourceRoot.FullName 'desktop'
+    if (-not (Test-Path $SourceDesktop)) {
+        throw 'Desktop application directory was not found in the repository archive.'
     }
 
-    $CliFiles = @('package.json', 'package-lock.json', 'index.js', 'launch.bat', 'magnet.ico', 'README.md', 'DISCLAIMER.md', 'LICENSE')
-    foreach ($file in $CliFiles) {
-        $src = Join-Path $SourceRoot.FullName $file
-        if (Test-Path $src) {
-            Copy-Item -Path $src -Destination (Join-Path $AppDir $file) -Force
+    New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
+
+    if (Test-Path $DesktopDir) {
+        $ExistingDesktopModules = Join-Path $DesktopDir 'node_modules'
+        $BackupModules = Join-Path $TempDir 'desktop_node_modules_backup'
+        if (Test-Path $ExistingDesktopModules) {
+            Move-Item -Path $ExistingDesktopModules -Destination $BackupModules -Force
         }
+        Remove-Item -Path $DesktopDir -Recurse -Force
+        Copy-Item -Path $SourceDesktop -Destination $DesktopDir -Recurse -Force
+        if (Test-Path $BackupModules) {
+            Move-Item -Path $BackupModules -Destination (Join-Path $DesktopDir 'node_modules') -Force
+        }
+    } else {
+        Copy-Item -Path $SourceDesktop -Destination $DesktopDir -Recurse -Force
     }
-    $LibSrc = Join-Path $SourceRoot.FullName 'lib'
-    if (Test-Path $LibSrc) {
-        Copy-Item -Path $LibSrc -Destination (Join-Path $AppDir 'lib') -Recurse -Force
+
+    foreach ($docFile in @('README.md', 'DISCLAIMER.md', 'LICENSE')) {
+        $src = Join-Path $SourceRoot.FullName $docFile
+        if (Test-Path $src) {
+            Copy-Item -Path $src -Destination (Join-Path $AppDir $docFile) -Force
+        }
     }
 
     $NpmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
@@ -114,23 +125,65 @@ try {
         throw 'npm was not found alongside Node.js. Please repair your Node.js installation.'
     }
 
-    Write-Host '[*] Installing CLI dependencies (including local VLC streaming engine)...' -ForegroundColor Cyan
-    Push-Location $AppDir
+    Write-Host '[*] Installing Magnet2Torrent Desktop packages (Electron + WebTorrent P2P + VLC engine)...' -ForegroundColor Cyan
+    Push-Location $DesktopDir
     try {
         & $NpmCmd.Source install --omit=dev --no-audit --no-fund
         if ($LASTEXITCODE -ne 0) {
             throw "npm install failed with exit code $LASTEXITCODE"
         }
+
+        $ElectronExe = Join-Path $DesktopDir 'node_modules\electron\dist\electron.exe'
+        $ElectronInstallJs = Join-Path $DesktopDir 'node_modules\electron\install.js'
+        if (-not (Test-Path $ElectronExe) -and (Test-Path $ElectronInstallJs)) {
+            Write-Host '[*] Downloading Electron desktop runtime binary...' -ForegroundColor Cyan
+            & $nodeInfo.Source $ElectronInstallJs
+            if ($LASTEXITCODE -ne 0) {
+                throw "Electron runtime download failed with exit code $LASTEXITCODE"
+            }
+        }
     } finally {
         Pop-Location
     }
 
+    $ElectronExe = Join-Path $DesktopDir 'node_modules\electron\dist\electron.exe'
+    if (-not (Test-Path $ElectronExe)) {
+        throw "Electron executable not found at $ElectronExe"
+    }
+
+    # Terminal launcher shim (launches Desktop window cleanly without hanging shell)
     New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
     $ShimPath = Join-Path $BinDir 'magnet2torrent.cmd'
-    $ShimContent = "@echo off`r`nnode `"$AppDir\index.js`" %*`r`n"
+    $ShimContent = "@echo off`r`nstart `"`" `"$ElectronExe`" `"$DesktopDir`" %*`r`n"
     Set-Content -Path $ShimPath -Value $ShimContent -Encoding Ascii -Force
 
-    # Persist User PATH without duplication and expose immediately in current shell
+    # Create Desktop and Start Menu shortcuts
+    $IconPath = Join-Path $DesktopDir 'assets\icon.ico'
+    $WshShell = New-Object -ComObject WScript.Shell
+    $ShortcutTargets = @()
+    $DesktopFolder = [Environment]::GetFolderPath('Desktop')
+    $ProgramsFolder = [Environment]::GetFolderPath('Programs')
+    if ($DesktopFolder -and (Test-Path $DesktopFolder)) {
+        $ShortcutTargets += (Join-Path $DesktopFolder 'Magnet2Torrent.lnk')
+    }
+    if ($ProgramsFolder -and (Test-Path $ProgramsFolder)) {
+        $ShortcutTargets += (Join-Path $ProgramsFolder 'Magnet2Torrent.lnk')
+    }
+
+    foreach ($lnkPath in $ShortcutTargets) {
+        $shortcut = $WshShell.CreateShortcut($lnkPath)
+        $shortcut.TargetPath = $ElectronExe
+        $shortcut.Arguments = "`"$DesktopDir`""
+        $shortcut.WorkingDirectory = $DesktopDir
+        if (Test-Path $IconPath) {
+            $shortcut.IconLocation = "$IconPath,0"
+        }
+        $shortcut.Description = 'Magnet2Torrent Desktop - Search and Direct VLC Streamer'
+        $shortcut.Save()
+        Write-Host "[+] Shortcut created: $lnkPath" -ForegroundColor Green
+    }
+
+    # Add User PATH entry without duplicates
     $currentUserPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
     $userEntries = @()
     if ($currentUserPath) {
@@ -163,20 +216,17 @@ try {
     }
 
     Write-Host ''
-    Write-Host '[+] Magnet2Torrent CLI installed successfully!' -ForegroundColor Green
-    Write-Host "    Location: $AppDir" -ForegroundColor Gray
+    Write-Host '[+] Magnet2Torrent Desktop installed successfully!' -ForegroundColor Green
+    Write-Host "    App Folder: $DesktopDir" -ForegroundColor Gray
     if ($vlcFound) {
-        Write-Host "    VLC:      Detected ($vlcFound)" -ForegroundColor Gray
+        Write-Host "    VLC Player: Detected ($vlcFound)" -ForegroundColor Gray
     } else {
-        Write-Host '    VLC:      Not detected yet (optional for --vlc playback).' -ForegroundColor Yellow
-        Write-Host '              Install with: winget install VideoLAN.VLC' -ForegroundColor Yellow
+        Write-Host '    VLC Player: Not detected yet (recommended for direct playback).' -ForegroundColor Yellow
+        Write-Host '                Install with: winget install VideoLAN.VLC' -ForegroundColor Yellow
     }
     Write-Host ''
-    Write-Host '  Quick Start:' -ForegroundColor White
-    Write-Host '    magnet2torrent                           # Interactive mode' -ForegroundColor Cyan
-    Write-Host '    magnet2torrent search "Ubuntu"           # Search and open/stream' -ForegroundColor Cyan
-    Write-Host '    magnet2torrent search "Movie" --vlc      # Stream directly in VLC' -ForegroundColor Cyan
-    Write-Host '    magnet2torrent stream "magnet:?..."      # Play a magnet link in VLC' -ForegroundColor Cyan
+    Write-Host '  Launch anytime from your Desktop shortcut, Start Menu ("Magnet2Torrent"),' -ForegroundColor White
+    Write-Host '  or by running "magnet2torrent" in any terminal.' -ForegroundColor Cyan
     Write-Host ''
 } finally {
     if (Test-Path $TempDir) {

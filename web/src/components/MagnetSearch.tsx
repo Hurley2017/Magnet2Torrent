@@ -635,20 +635,20 @@ export function MagnetSearch() {
           </div>
         </header>
 
-        {/* Small CLI & VLC Streaming Advertisement Bar with Info Button */}
+        {/* Small Desktop App Advertisement Bar with Info Button */}
         <aside
-          aria-label="Magnet2Torrent CLI with VLC streaming"
+          aria-label="Magnet2Torrent Desktop App with VLC streaming"
           className="mb-6 border border-zinc-800 bg-[#0d0d11]"
         >
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2.5 text-xs">
               <span className="shrink-0 bg-red-700 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white uppercase">
-                CLI + VLC
+                DESKTOP
               </span>
               <span className="text-zinc-200">
-                Want direct P2P playback in{' '}
-                <strong className="font-semibold text-white">VLC</strong> on your PC? Install{' '}
-                <strong className="font-semibold text-white">Magnet2Torrent CLI</strong>.
+                Want one-click playback directly in{' '}
+                <strong className="font-semibold text-white">VLC</strong>? Install{' '}
+                <strong className="font-semibold text-white">Magnet2Torrent Desktop</strong>.
               </span>
             </div>
 
@@ -657,8 +657,8 @@ export function MagnetSearch() {
               onClick={() => setCliAdOpen((open) => !open)}
               aria-expanded={cliAdOpen}
               aria-controls="cli-promo-panel"
-              aria-label="Magnet2Torrent CLI info and Windows PowerShell installer"
-              title="CLI & VLC Info"
+              aria-label="Magnet2Torrent Desktop app info and Windows PowerShell installer"
+              title="Desktop App Info"
               className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-red-500 ${
                 cliAdOpen
                   ? 'border-red-500 bg-red-700 text-white shadow-[0_0_12px_rgba(220,38,38,0.45)]'
@@ -675,10 +675,10 @@ export function MagnetSearch() {
               className="space-y-3 border-t border-zinc-800 bg-[#121216] px-4 py-3.5 text-xs text-zinc-300"
             >
               <p className="leading-relaxed">
-                <strong className="text-white">Direct VLC Playback in the CLI:</strong> Magnet2Torrent
-                CLI connects natively to BitTorrent swarms on your device and streams selected video
-                files straight into <strong className="text-white">VLC Media Player</strong> with no
-                browser limitations or server media hosting.
+                <strong className="text-white">Standalone Windows Desktop App:</strong>{' '}
+                Magnet2Torrent Desktop runs natively on your PC with the same search &amp; media
+                dossier, connects directly to BitTorrent swarms, and opens video straight into{' '}
+                <strong className="text-white">VLC Media Player</strong> on click.
               </p>
 
               <div className="flex flex-col gap-2 border border-zinc-800 bg-zinc-950 p-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -701,7 +701,7 @@ export function MagnetSearch() {
 
               <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-zinc-400">
                 <span>
-                  Usage: <span className="text-zinc-200">magnet2torrent search &quot;title&quot; --vlc</span>
+                  Creates Desktop &amp; Start Menu shortcuts (requires Node 22+ &amp; VLC)
                 </span>
                 <a
                   href="https://github.com/Hurley2017/Magnet2Torrent#readme"
@@ -709,7 +709,7 @@ export function MagnetSearch() {
                   rel="noopener noreferrer"
                   className="text-red-400 underline underline-offset-4 hover:text-red-300"
                 >
-                  CLI Guide on GitHub
+                  Desktop Guide on GitHub
                 </a>
               </div>
             </div>

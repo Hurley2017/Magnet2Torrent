@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; img-src 'self' https: http: data:; style-src 'self' 'unsafe-inline'; script-src 'self';"
+  />
+  <title>Magnet2Torrent Desktop</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Frameless-overlay native dark titlebar -->
+  <div class="titlebar">
+    <div class="titlebar-brand">
+      <svg aria-hidden="true" viewBox="0 0 32 32" width="16" height="16" fill="none">
+        <path d="M7.5 10.5V19a8.5 8.5 0 0 0 17 0v-8.5" stroke="#ef4444" stroke-width="5.5" stroke-linecap="butt" />
+        <path d="M4.75 3.5h5.5v5h-5.5zM21.75 3.5h5.5v5h-5.5z" fill="#a1a1aa" />
+        <path d="M4.75 8.5h5.5v1.6h-5.5zM21.75 8.5h5.5v1.6h-5.5z" fill="#27272a" />
+      </svg>
+      <span>MAGNET2TORRENT DESKTOP</span>
+    </div>
+    <div class="titlebar-right">
+      <button id="vlc-status-btn" type="button" class="vlc-pill" title="Click to choose VLC executable path">
+        Checking VLC…
+      </button>
+    </div>
+  </div>
+
+  <!-- Anti-Piracy & Legal Advisory Strip -->
+  <aside class="advisory-strip" aria-label="Legal and anti-piracy advisory">
+    <div class="advisory-bar"></div>
+    <div class="container">
+      <details id="advisory-details" class="advisory-details">
+        <summary class="advisory-summary">
+          <span class="advisory-left">
+            <span class="badge-red">Advisory</span>
+            <span>
+              Strictly for open-source, public-domain, and authorized P2P distribution.
+              <strong>No piracy.</strong>
+            </span>
+          </span>
+          <span class="btn-outline-xs">Disclaimer</span>
+        </summary>
+        <div class="advisory-body">
+          <p>
+            <strong>Anti-Piracy Policy:</strong> Magnet2Torrent Desktop is an open-source index aggregator
+            and local VLC streamer built strictly for legal file distribution (Linux ISOs, Creative Commons works,
+            public-domain media, and open datasets).
+          </p>
+          <ul>
+            <li>No torrent files or media are hosted or proxied by external servers; streaming stays local on your device.</li>
+            <li>You are solely responsible for verifying authorization before streaming or downloading any content.</li>
+          </ul>
+          <div id="advisory-consent-row" class="advisory-consent-row hidden">
+            <span class="mono-muted">STATUS: TERMS ACCEPTED</span>
+            <button id="revoke-terms-btn" type="button" class="btn-outline-xs">Revoke Consent</button>
+          </div>
+        </div>
+      </details>
+    </div>
+  </aside>
+
+  <main class="container main-wrap">
+    <!-- Masthead -->
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Desktop P2P Search &amp; Direct VLC Streamer</p>
+        <h1 class="brand-title">
+          <a id="home-link" href="#home">MAGNET<span class="red">2</span>TORRENT</a>
+        </h1>
+      </div>
+      <div class="masthead-actions">
+        <button id="back-btn" type="button" class="btn-secondary hidden">Back</button>
+        <span id="sources-badge" class="source-pill">9 SOURCES INDEXED</span>
+        <a id="github-link" href="https://github.com/Hurley2017/Magnet2Torrent" class="btn-secondary">GitHub</a>
+      </div>
+    </header>
+
+    <!-- Terms & Conditions Gate -->
+    <section id="terms-gate" class="terms-card hidden" aria-labelledby="terms-heading">
+      <div class="terms-left">
+        <div>
+          <span class="badge-red">Required Consent</span>
+          <h2 id="terms-heading" class="terms-title">LEGAL P2P DISTRIBUTION ONLY.</h2>
+          <p class="terms-desc">
+            Magnet2Torrent indexes public BitTorrent sources strictly for open-source software, Linux
+            distributions, Creative Commons works, and public-domain media.
+          </p>
+        </div>
+        <p class="mono-muted">ACCEPT THE TERMS TO UNLOCK SEARCH &amp; VLC STREAMING</p>
+      </div>
+      <div class="terms-right">
+        <div class="terms-rules">
+          <div class="rule-item"><span class="rule-num">01 //</span><strong>No Piracy:</strong> Do not search, stream, or download copyrighted files without authorization.</div>
+          <div class="rule-item"><span class="rule-num">02 //</span><strong>Local Execution:</strong> All provider queries and VLC P2P streaming execute strictly on your device.</div>
+          <div class="rule-item"><span class="rule-num">03 //</span><strong>User Compliance:</strong> You assume sole responsibility for complying with applicable laws.</div>
+        </div>
+        <form id="terms-form" class="terms-form">
+          <label class="terms-checkbox-label" for="accept-terms-checkbox">
+            <input id="accept-terms-checkbox" type="checkbox" />
+            <span>I accept the <strong>Legal Disclaimer &amp; Terms of Use</strong> and confirm I will use this desktop app solely for lawful transfers.</span>
+          </label>
+          <button id="accept-terms-btn" type="submit" class="btn-primary full-width" disabled>
+            Accept Terms &amp; Enter
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Main Workspace (shown after consent) -->
+    <section id="workspace" class="hidden">
+      <form id="search-form" class="search-bar" role="search">
+        <label for="search-input" class="sr-only">Search torrents</label>
+        <input
+          id="search-input"
+          type="search"
+          placeholder="Enter title (e.g. Big Buck Bunny, Ubuntu 24.04, Inception)..."
+          autocomplete="off"
+        />
+        <button id="search-submit-btn" type="submit" class="btn-primary search-btn">Search</button>
+      </form>
+
+      <div id="alert-box" class="alert-box hidden" role="alert">
+        <span id="alert-text"></span>
+        <div class="alert-actions">
+          <button id="alert-fallback-client-btn" type="button" class="btn-secondary hidden">Open in Client</button>
+          <button id="alert-dismiss-btn" type="button" class="btn-secondary">Dismiss</button>
+        </div>
+      </div>
+
+      <!-- Home Index Roster -->
+      <section id="home-roster" class="home-roster">
+        <div class="section-head">
+          <h2>Active Index Roster</h2>
+          <span class="mono-muted">Click any magnet icon to stream directly in VLC Media Player</span>
+        </div>
+        <div id="roster-grid" class="roster-grid"></div>
+      </section>
+
+      <!-- Loading State -->
+      <div id="loading-box" class="loading-box hidden" role="status" aria-live="polite">
+        <p class="loading-title">Querying 9 Sources…</p>
+        <p class="loading-sub">Aggregating results, resolving media dossier, and sorting by highest seeders</p>
+      </div>
+
+      <!-- Split Results Workspace -->
+      <div id="results-workspace" class="split-grid hidden">
+        <aside class="sidebar-rail">
+          <section id="media-dossier" class="panel hidden" aria-label="Title dossier"></section>
+          <section id="source-ledger" class="panel" aria-label="Source status and fetch breakdown"></section>
+        </aside>
+
+        <section class="results-col" aria-label="Search results">
+          <div id="results-empty" class="empty-box hidden">
+            <p id="results-empty-title" class="empty-title"></p>
+            <p class="empty-sub">Try different keywords or inspect source availability on the left.</p>
+          </div>
+
+          <div id="group-matched" class="result-group hidden">
+            <div class="group-header group-header-red">
+              <h2 id="matched-heading"></h2>
+              <span class="mono-muted">HIGHEST SEEDERS FIRST</span>
+            </div>
+            <div id="matched-list" class="result-list"></div>
+          </div>
+
+          <div id="group-others" class="result-group hidden">
+            <div class="group-header">
+              <h2 id="others-heading"></h2>
+              <span class="mono-muted">HIGHEST SEEDERS FIRST</span>
+            </div>
+            <div id="others-list" class="result-list"></div>
+          </div>
+
+          <nav id="pagination-bar" class="pagination-bar hidden" aria-label="Pagination">
+            <p id="pagination-info" class="mono-muted"></p>
+            <div id="pagination-buttons" class="pagination-buttons"></div>
+          </nav>
+        </section>
+      </div>
+    </section>
+
+    <footer class="footer">
+      MAGNET2TORRENT DESKTOP // MIT LICENSE // LOCAL P2P + VLC DIRECT STREAMING // NO PIRACY
+    </footer>
+  </main>
+
+  <!-- Live VLC P2P Stream HUD -->
+  <section id="stream-hud" class="stream-hud hidden" aria-label="Live VLC stream status">
+    <div class="container stream-hud-inner">
+      <div class="stream-hud-top">
+        <div class="stream-hud-title-wrap">
+          <span id="stream-badge" class="badge-red">P2P STREAM</span>
+          <div class="stream-hud-meta">
+            <div id="stream-file-name" class="stream-file-name">Connecting to swarm…</div>
+            <div id="stream-stats-line" class="stream-stats-line">Initializing WebTorrent…</div>
+          </div>
+        </div>
+        <div class="stream-hud-actions">
+          <button id="stream-copy-url-btn" type="button" class="btn-secondary hidden">Copy URL</button>
+          <button id="stream-reopen-vlc-btn" type="button" class="btn-secondary hidden">Re-open VLC</button>
+          <button id="stream-stop-btn" type="button" class="btn-primary">Stop Stream</button>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div id="stream-progress-fill" class="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Multi-File Video Picker Modal -->
+  <div id="file-picker-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="picker-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <span class="badge-red">Select Video File</span>
+          <h3 id="picker-title" class="modal-title">Multiple media files in torrent</h3>
+        </div>
+        <button id="picker-cancel-btn" type="button" class="btn-secondary">Cancel</button>
+      </div>
+      <div id="picker-list" class="picker-list"></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

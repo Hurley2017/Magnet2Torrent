@@ -1,0 +1,24 @@
+{
+  "name": "magnet2torrent-desktop",
+  "version": "2.0.0",
+  "description": "Standalone Magnet2Torrent Desktop application with multi-provider search, media dossier, and direct VLC streaming.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test:engines": "node -e \"require('./src/search-engine'); require('./src/stream-engine'); console.log('DESKTOP_ENGINES_OK')\""
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hurley2017/Magnet2Torrent.git"
+  },
+  "author": "Tusher Mondal (Hurley2017)",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "electron": "^45.5.0",
+    "webtorrent": "^3.0.21"
+  }
+}
