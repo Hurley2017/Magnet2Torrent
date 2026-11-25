@@ -1,12 +1,15 @@
 {
   "name": "magnet2torrent",
-  "version": "1.0.0",
-  "description": "Terminal-based torrent search engine and launcher for magnet links",
+  "version": "1.1.0",
+  "description": "Terminal-based torrent search engine with magnet launching and direct local VLC streaming",
   "main": "index.js",
   "bin": {
     "magnet2torrent": "./index.js"
   },
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "start": "node index.js",
     "search": "node index.js search"
@@ -32,12 +35,13 @@
   },
   "homepage": "https://github.com/Hurley2017/Magnet2Torrent#readme",
   "dependencies": {
-    "torrent-search-api": "^2.0.3",
-    "inquirer": "^8.2.6",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "inquirer": "^8.2.6",
     "open": "^8.4.2",
     "ora": "^5.4.1",
-    "commander": "^12.1.0"
+    "torrent-search-api": "^2.0.3",
+    "webtorrent": "^3.0.21"
   }
 }

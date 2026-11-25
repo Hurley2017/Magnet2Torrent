@@ -11,6 +11,8 @@ import {
 import { AdvisoryBanner } from './AdvisoryBanner';
 
 const TERMS_STORAGE_KEY = 'm2t_terms_accepted_v1';
+const CLI_INSTALL_COMMAND =
+  'irm https://raw.githubusercontent.com/Hurley2017/Magnet2Torrent/main/install.ps1 | iex';
 
 function seedClass(seeds: number): string {
   if (seeds >= 100) return 'border-emerald-500/70 bg-emerald-950/75 text-emerald-200';
@@ -62,7 +64,7 @@ function computeDynamicPageSize(
   hasMediaCard: boolean
 ): number {
   const isDesktopSplit = viewportWidth >= 1024;
-  const chromeHeight = isDesktopSplit ? 310 : hasMediaCard ? 460 : 330;
+  const chromeHeight = isDesktopSplit ? 360 : hasMediaCard ? 510 : 380;
   const rowHeight = viewportWidth >= 640 ? 104 : 132;
   const available = Math.max(360, viewportHeight - chromeHeight);
   const count = Math.floor(available / rowHeight);
@@ -293,6 +295,8 @@ export function MagnetSearch() {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [launched, setLaunched] = useState<{ title: string; magnet: string } | null>(null);
+  const [cliAdOpen, setCliAdOpen] = useState(false);
+  const [cliCmdCopied, setCliCmdCopied] = useState(false);
 
   // Dynamic viewport-aware pagination
   const [pageSize, setPageSize] = useState(7);
@@ -534,6 +538,16 @@ export function MagnetSearch() {
     }
   }
 
+  async function handleCopyCliInstall() {
+    try {
+      await navigator.clipboard.writeText(CLI_INSTALL_COMMAND);
+      setCliCmdCopied(true);
+      setTimeout(() => setCliCmdCopied(false), 1800);
+    } catch {
+      setCliAdOpen(true);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(results.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const startIdx = (safePage - 1) * pageSize;
@@ -578,7 +592,7 @@ export function MagnetSearch() {
 
       <main className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10">
         {/* Editorial Masthead */}
-        <header className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-zinc-800 pb-5">
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-zinc-800 pb-5">
           <div>
             <p className="font-mono text-[11px] font-semibold tracking-[0.2em] text-red-400 uppercase">
               Distributed Magnet Search Engine
@@ -620,6 +634,87 @@ export function MagnetSearch() {
             </a>
           </div>
         </header>
+
+        {/* Small CLI & VLC Streaming Advertisement Bar with Info Button */}
+        <aside
+          aria-label="Magnet2Torrent CLI with VLC streaming"
+          className="mb-6 border border-zinc-800 bg-[#0d0d11]"
+        >
+          <div className="flex items-center justify-between gap-3 px-4 py-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5 text-xs">
+              <span className="shrink-0 bg-red-700 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-white uppercase">
+                CLI + VLC
+              </span>
+              <span className="text-zinc-200">
+                Want direct P2P playback in{' '}
+                <strong className="font-semibold text-white">VLC</strong> on your PC? Install{' '}
+                <strong className="font-semibold text-white">Magnet2Torrent CLI</strong>.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCliAdOpen((open) => !open)}
+              aria-expanded={cliAdOpen}
+              aria-controls="cli-promo-panel"
+              aria-label="Magnet2Torrent CLI info and Windows PowerShell installer"
+              title="CLI & VLC Info"
+              className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-red-500 ${
+                cliAdOpen
+                  ? 'border-red-500 bg-red-700 text-white shadow-[0_0_12px_rgba(220,38,38,0.45)]'
+                  : 'border-zinc-600 bg-zinc-900 text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-red-500 hover:bg-red-700 hover:text-white'
+              }`}
+            >
+              i
+            </button>
+          </div>
+
+          {cliAdOpen && (
+            <div
+              id="cli-promo-panel"
+              className="space-y-3 border-t border-zinc-800 bg-[#121216] px-4 py-3.5 text-xs text-zinc-300"
+            >
+              <p className="leading-relaxed">
+                <strong className="text-white">Direct VLC Playback in the CLI:</strong> Magnet2Torrent
+                CLI connects natively to BitTorrent swarms on your device and streams selected video
+                files straight into <strong className="text-white">VLC Media Player</strong> with no
+                browser limitations or server media hosting.
+              </p>
+
+              <div className="flex flex-col gap-2 border border-zinc-800 bg-zinc-950 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="font-mono text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+                    Windows PowerShell (iex) Installer
+                  </div>
+                  <code className="mt-1 block overflow-x-auto font-mono text-[11px] text-white whitespace-nowrap">
+                    {CLI_INSTALL_COMMAND}
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyCliInstall}
+                  className="min-h-[36px] shrink-0 rounded-md border border-red-700/80 bg-red-700 px-3.5 py-1.5 font-mono text-[11px] font-bold tracking-wider text-white uppercase transition hover:bg-red-600 active:translate-y-px"
+                >
+                  {cliCmdCopied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-zinc-400">
+                <span>
+                  Usage: <span className="text-zinc-200">magnet2torrent search &quot;title&quot; --vlc</span>
+                </span>
+                <a
+                  href="https://github.com/Hurley2017/Magnet2Torrent#readme"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-red-400 underline underline-offset-4 hover:text-red-300"
+                >
+                  CLI Guide on GitHub
+                </a>
+              </div>
+            </div>
+          )}
+        </aside>
 
         {/* Mandatory Terms & Conditions Gate */}
         {!termsAccepted ? (

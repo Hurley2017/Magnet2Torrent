@@ -9,6 +9,7 @@ const Table = require('cli-table3');
 const open = require('open');
 const ora = require('ora');
 const { program } = require('commander');
+const { streamMagnetToVlc } = require('./lib/stream-vlc');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -257,6 +258,68 @@ async function promptSelectTorrent(torrents) {
   return idx;
 }
 
+async function promptTorrentAction() {
+  const { action } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'action',
+      message: chalk.cyan('How would you like to open this torrent?'),
+      choices: [
+        { name: '🎬  Stream directly in VLC (local P2P)', value: 'vlc' },
+        { name: '🚀  Launch in default torrent client (download)', value: 'open' },
+        { name: '🧲  Show magnet link only', value: 'copy' },
+        { name: '⬅   Back', value: 'back' },
+      ],
+    },
+  ]);
+  return action;
+}
+
+async function handleSelectedTorrent(chosen, options = {}) {
+  console.log(chalk.bold(`\n🧲 Selected: ${chalk.white(chosen.title)}\n`));
+
+  const mode = options.vlc || options.stream
+    ? 'vlc'
+    : options.open
+      ? 'open'
+      : await promptTorrentAction();
+
+  if (mode === 'back') return false;
+
+  const magnet = await fetchMagnet(chosen);
+  if (!magnet) return false;
+
+  if (mode === 'copy') {
+    console.log(chalk.gray('\nMagnet link:\n') + chalk.cyan(magnet) + '\n');
+    return true;
+  }
+
+  if (mode === 'vlc') {
+    const res = await streamMagnetToVlc(magnet, {
+      keep: options.keep,
+      dir: options.dir,
+      vlcPath: options.vlcPath,
+    });
+    if (!res.ok && res.reason === 'no_media') {
+      const { fallback } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'fallback',
+          message: 'Open in your default torrent client instead?',
+          default: false,
+        },
+      ]);
+      if (fallback) {
+        await launchTorrent(magnet);
+      }
+    }
+    return true;
+  }
+
+  await launchTorrent(magnet);
+  return true;
+}
+
 async function promptAfterLaunch() {
   const { action } = await inquirer.prompt([
     {
@@ -319,10 +382,11 @@ async function mainLoop() {
       if (idx === -1) { state = 'search'; continue; }
 
       const chosen = lastResults[idx];
-      console.log(chalk.bold(`\n🧲 Selected: ${chalk.white(chosen.title)}\n`));
-
-      const magnet = await fetchMagnet(chosen);
-      await launchTorrent(magnet);
+      const acted = await handleSelectedTorrent(chosen);
+      if (!acted) {
+        state = 'results';
+        continue;
+      }
 
       const next = await promptAfterLaunch();
       if (next === 'quit')   state = 'quit';
@@ -337,10 +401,43 @@ async function mainLoop() {
 
 // ─── CLI Entry ────────────────────────────────────────────────────────────────
 
+function resolveCategoryChoice(rawCategory) {
+  const rawCat = (rawCategory || 'All').trim().toLowerCase();
+  return (
+    CATEGORY_LABELS.find(
+      (label) =>
+        label.toLowerCase().includes(rawCat) ||
+        CATEGORY_MAP[label].toLowerCase() === rawCat
+    ) || '🌐 All'
+  );
+}
+
+async function runDirectSearch(query, options) {
+  printBanner();
+  await getEnabledProviders();
+
+  const catChoice = resolveCategoryChoice(options.category);
+  const limit = Math.max(1, Math.min(options.limit || DEFAULT_LIMIT, 50));
+  console.log('');
+  const results = await searchTorrents(query, catChoice, limit);
+  console.log('');
+
+  if (results.length === 0) {
+    console.log(chalk.yellow('⚠  No results found. Try a broader search term or different category.\n'));
+    return;
+  }
+
+  printTorrentTable(results);
+  const idx = await promptSelectTorrent(results);
+  if (idx >= 0) {
+    await handleSelectedTorrent(results[idx], options);
+  }
+}
+
 program
   .name('magnet2torrent')
-  .description('Search torrents across 10+ providers and open them in your torrent client')
-  .version('1.0.0')
+  .description('Search torrents across public providers, open magnet links, or stream directly in VLC')
+  .version('1.1.0')
   .addHelpText(
     'after',
     chalk.yellow('\n⚠️  ADVISORY: Use this tool solely for open-source and legally distributable files.\n   Do NOT use for copyright infringement or piracy.')
@@ -351,37 +448,33 @@ program
   .description('Search torrents directly with a query')
   .option('-c, --category <category>', 'Category (All, Movies, TV, Music, Apps, Books, Games, Anime)', 'All')
   .option('-l, --limit <limit>', 'Max results to return (1-50)', (val) => parseInt(val, 10), DEFAULT_LIMIT)
-  .action(async (query, options) => {
-    printBanner();
-    await getEnabledProviders();
+  .option('-v, --vlc', 'Stream selected torrent directly in VLC')
+  .option('--stream', 'Alias for --vlc')
+  .option('-o, --open', 'Open selected torrent directly in default torrent client')
+  .option('--keep', 'Keep downloaded stream files after closing VLC')
+  .option('--dir <path>', 'Directory to store streamed files (implies keeping files)')
+  .option('--vlc-path <path>', 'Custom path to VLC executable')
+  .action(runDirectSearch);
 
-    // Map passed category string to friendly label
-    const rawCat = (options.category || 'All').trim().toLowerCase();
-    const catChoice =
-      CATEGORY_LABELS.find(
-        (label) =>
-          label.toLowerCase().includes(rawCat) ||
-          CATEGORY_MAP[label].toLowerCase() === rawCat
-      ) || '🌐 All';
-
-    const limit = Math.max(1, Math.min(options.limit || DEFAULT_LIMIT, 50));
-    console.log('');
-    const results = await searchTorrents(query, catChoice, limit);
-    console.log('');
-
-    if (results.length === 0) {
-      console.log(chalk.yellow('⚠  No results found. Try a broader search term or different category.\n'));
+program
+  .command('stream <target>')
+  .description('Stream a magnet:? link directly in VLC or search and stream a title')
+  .option('-c, --category <category>', 'Category when searching by title', 'All')
+  .option('-l, --limit <limit>', 'Max results to return (1-50)', (val) => parseInt(val, 10), DEFAULT_LIMIT)
+  .option('--keep', 'Keep downloaded stream files after closing VLC')
+  .option('--dir <path>', 'Directory to store streamed files (implies keeping files)')
+  .option('--vlc-path <path>', 'Custom path to VLC executable')
+  .action(async (target, options) => {
+    if (String(target).startsWith('magnet:?')) {
+      printBanner();
+      await streamMagnetToVlc(target, {
+        keep: options.keep,
+        dir: options.dir,
+        vlcPath: options.vlcPath,
+      });
       return;
     }
-
-    printTorrentTable(results);
-    const idx = await promptSelectTorrent(results);
-    if (idx >= 0) {
-      const chosen = results[idx];
-      console.log(chalk.bold(`\n🧲 Selected: ${chalk.white(chosen.title)}\n`));
-      const magnet = await fetchMagnet(chosen);
-      await launchTorrent(magnet);
-    }
+    await runDirectSearch(target, { ...options, vlc: true });
   });
 
 program
