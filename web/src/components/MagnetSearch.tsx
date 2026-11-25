@@ -630,7 +630,7 @@ export function MagnetSearch() {
               rel="noopener noreferrer"
               className="rounded-md border border-zinc-700 bg-zinc-900 px-3.5 py-2 font-mono text-xs font-semibold tracking-wide text-zinc-100 uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-red-600 hover:bg-zinc-800 hover:text-white focus-visible:outline-2 focus-visible:outline-red-500"
             >
-              GitHub / CLI
+              GitHub
             </a>
           </div>
         </header>

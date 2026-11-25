@@ -95,6 +95,24 @@ try {
 
     New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
 
+    $TargetElectronExe = Join-Path $DesktopDir 'node_modules\electron\dist\electron.exe'
+    Get-Process electron -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -eq $TargetElectronExe } |
+        Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 300
+
+    # Clean up any leftover legacy CLI files from earlier versions
+    foreach ($legacyItem in @('index.js', 'launch.bat', 'lib', 'magnet.ico', 'package.json', 'package-lock.json', 'node_modules')) {
+        $legacyPath = Join-Path $AppDir $legacyItem
+        if (Test-Path $legacyPath) {
+            Remove-Item -Path $legacyPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $LegacyDeskLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Magnet2Torrent CLI.lnk'
+    if (Test-Path $LegacyDeskLnk) {
+        Remove-Item -Path $LegacyDeskLnk -Force -ErrorAction SilentlyContinue
+    }
+
     if (Test-Path $DesktopDir) {
         $ExistingDesktopModules = Join-Path $DesktopDir 'node_modules'
         $BackupModules = Join-Path $TempDir 'desktop_node_modules_backup'
